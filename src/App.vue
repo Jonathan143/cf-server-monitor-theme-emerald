@@ -17,17 +17,6 @@ const appStore = useAppStore()
 const isReady = ref(false)
 const corsDialogOpen = ref(false)
 const corsAllowedOrigin = ref('')
-const pageTransitionProps = computed(() => appStore.disablePageAnimation
-  ? { css: false as const }
-  : {
-      enterActiveClass: 'transition-all duration-150 ease-out',
-      enterFromClass: 'opacity-0',
-      enterToClass: 'opacity-100',
-      leaveActiveClass: 'transition-all duration-150 ease-in',
-      leaveFromClass: 'opacity-100',
-      leaveToClass: 'opacity-0',
-      mode: 'out-in' as const,
-    })
 
 onMounted(async () => {
   try {
@@ -58,11 +47,9 @@ onUnmounted(() => {
     <main v-if="!appStore.loading" class="flex-1">
       <div class="max-w-[1280px] mx-auto">
         <RouterView v-slot="{ Component }">
-          <Transition v-bind="pageTransitionProps">
-            <KeepAlive :include="['HomeView']">
-              <component :is="Component" />
-            </KeepAlive>
-          </Transition>
+          <KeepAlive :include="['HomeView']">
+            <component :is="Component" />
+          </KeepAlive>
         </RouterView>
       </div>
     </main>
