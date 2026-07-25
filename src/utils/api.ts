@@ -166,8 +166,24 @@ export interface CfServer {
   is_online?: boolean
 }
 
+export interface LatestReportSample {
+  ts?: number | string
+  payload?: Record<string, unknown>
+  data?: Record<string, unknown>
+}
+
+export interface LatestReportUpdate {
+  serverId: string
+  reportTs?: number | string
+  samples?: LatestReportSample[]
+  reportAgeMs?: number
+}
+
 export interface ServersResponse {
   servers: CfServer[]
+  latestReportUpdates?: LatestReportUpdate[]
+  stats?: Record<string, unknown>
+  regionStats?: Record<string, unknown>
   sysConfig?: SysConfig
 }
 
@@ -845,19 +861,27 @@ export function adaptServer(server: CfServer, apiIndex: number): AdaptedServer {
   }
 }
 
-export async function fetchAllServers(): Promise<{ clients: Record<string, Client>, statuses: Record<string, NodeStatus> }> {
+export async function fetchAllServers(): Promise<{
+  clients: Record<string, Client>
+  statuses: Record<string, NodeStatus>
+  latestReportUpdates: Array<{ apiIndex: number, updates: LatestReportUpdate[] }>
+}> {
   sourceRegistry.clear()
   const responses = await Promise.all(getApiBases().map((_, index) => request<ServersResponse>('/api/servers', index)))
   const clients: Record<string, Client> = {}
   const statuses: Record<string, NodeStatus> = {}
+  const latestReportUpdates: Array<{ apiIndex: number, updates: LatestReportUpdate[] }> = []
   responses.forEach((response, apiIndex) => {
     for (const server of response.servers ?? []) {
       const adapted = adaptServer(server, apiIndex)
       clients[adapted.client.uuid] = adapted.client
       statuses[adapted.client.uuid] = adapted.status
     }
+    if (response.latestReportUpdates?.length) {
+      latestReportUpdates.push({ apiIndex, updates: response.latestReportUpdates })
+    }
   })
-  return { clients, statuses }
+  return { clients, statuses, latestReportUpdates }
 }
 
 function rowToStatusRecord(uuid: string, row: HistoryRow): StatusRecord {

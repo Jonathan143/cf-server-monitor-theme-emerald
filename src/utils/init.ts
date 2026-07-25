@@ -197,8 +197,33 @@ class InitManager {
 
   private async loadNodes(): Promise<void> {
     try {
-      const { clients, statuses } = await fetchAllServers()
+      const { clients, statuses, latestReportUpdates } = await fetchAllServers()
       this.nodesStore.initNodes(clients, statuses)
+
+      for (const { apiIndex, updates } of latestReportUpdates) {
+        for (const update of updates) {
+          const rawSamples: LiveSample[] = (update.samples ?? []).map(s => ({
+            serverId: update.serverId,
+            ts: normalizeSampleTimestamp(s.ts, Date.now()),
+            data: s.payload ?? s.data ?? {},
+          }))
+          if (!rawSamples.length)
+            continue
+
+          const sorted = rawSamples.sort((a, b) => a.ts - b.ts)
+          const uuid = getDisplayUuid(apiIndex, update.serverId)
+
+          this.applyLiveSample(apiIndex, sorted.at(-1)!)
+
+          if (sorted.length > 1) {
+            const historical = sorted.slice(0, -1)
+            this.liveSampleQueues.set(uuid, historical)
+            this.livePlaybackTimes.set(uuid, historical[0]!.ts)
+          }
+        }
+      }
+      this.flushPendingStatuses()
+
       this.appStore.connectionError = false
     }
     catch (error) {
