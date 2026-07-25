@@ -1,0 +1,38 @@
+name: Deploy Build Branch
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'package.json'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+
+      - name: Push dist to build branch
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          cp -r dist /tmp/dist-build
+          cd /tmp/dist-build
+          git init -b main
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add -A
+          git commit -m "chore: build dist for v${VERSION}"
+          git remote add origin "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push origin HEAD:build --force
