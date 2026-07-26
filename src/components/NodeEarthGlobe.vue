@@ -135,7 +135,8 @@ const regionClusters = computed<RegionCluster[]>(() => {
 
 const regionRates = computed<Map<string, RegionRate>>(() => {
   const map = new Map<string, RegionRate>()
-  for (const node of displayNodes.value) {
+  // 始终使用 nodesStore.nodes 绕过 earthNodes 60s 节流，使速率实时更新
+  for (const node of nodesStore.nodes) {
     if (!node.online)
       continue
     const code = getCountryCodeFromRegion(node.region)
