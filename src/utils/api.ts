@@ -514,7 +514,7 @@ function getBaseHostname(baseUrl: string): string {
 
 function authHeaders(baseUrl: string, initialHeaders?: HeadersInit): Headers {
   const headers = new Headers(initialHeaders)
-  const token = getLocalStorageValue('auth_token') || getLocalStorageValue('token')
+  const token = getLocalStorageValue('jwt_token')
   if (token)
     headers.set('Authorization', `Bearer ${token}`)
 
