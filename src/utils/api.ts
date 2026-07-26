@@ -488,19 +488,43 @@ export function getDisplayUuid(apiIndex: number, serverId: string): string {
   return hasMultipleApiBases() ? `${apiIndex}:${serverId}` : serverId
 }
 
-function authHeaders(baseUrl: string): Record<string, string> {
-  const headers: Record<string, string> = {}
-  const token = localStorage.getItem('token') || localStorage.getItem('auth_token')
-  if (token)
-    headers.Authorization = `Bearer ${token}`
+function getLocalStorageValue(key: string): string {
+  if (typeof localStorage === 'undefined')
+    return ''
 
-  const host = new URL(baseUrl, window.location.origin).hostname
-  const turnstileToken = localStorage.getItem('turnstile_token')
-  const verified = localStorage.getItem(`turnstile_verified_${host}`) || localStorage.getItem('turnstile_verified')
+  try {
+    return localStorage.getItem(key)?.trim() ?? ''
+  }
+  catch {
+    return ''
+  }
+}
+
+function getBaseHostname(baseUrl: string): string {
+  if (typeof window === 'undefined')
+    return ''
+
+  try {
+    return new URL(baseUrl, window.location.origin).hostname
+  }
+  catch {
+    return ''
+  }
+}
+
+function authHeaders(baseUrl: string, initialHeaders?: HeadersInit): Headers {
+  const headers = new Headers(initialHeaders)
+  const token = getLocalStorageValue('auth_token') || getLocalStorageValue('token')
+  if (token)
+    headers.set('Authorization', `Bearer ${token}`)
+
+  const host = getBaseHostname(baseUrl)
+  const turnstileToken = getLocalStorageValue('turnstile_token')
+  const verified = (host ? getLocalStorageValue(`turnstile_verified_${host}`) : '') || getLocalStorageValue('turnstile_verified')
   if (turnstileToken)
-    headers['X-Turnstile-Token'] = turnstileToken
+    headers.set('X-Turnstile-Token', turnstileToken)
   else if (verified)
-    headers['X-Turnstile-Verified'] = verified
+    headers.set('X-Turnstile-Verified', verified)
   return headers
 }
 
@@ -523,10 +547,7 @@ async function request<T>(path: string, apiIndex = 0, options: RequestInit = {})
   try {
     response = await fetch(`${baseUrl}${path}`, {
       ...options,
-      headers: {
-        ...authHeaders(baseUrl),
-        ...options.headers,
-      },
+      headers: authHeaders(baseUrl, options.headers),
     })
   }
   catch (error) {

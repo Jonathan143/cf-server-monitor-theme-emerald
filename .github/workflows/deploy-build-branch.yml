@@ -1,11 +1,12 @@
 name: Deploy Build Branch
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
     paths:
-      - 'package.json'
+      - package.json
 
 jobs:
   deploy:
@@ -23,16 +24,27 @@ jobs:
       - run: bun run build
 
       - name: Push dist to build branch
-        env:
-          TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION=$(node -p "require('./package.json').version")
+
           cp -r dist /tmp/dist-build
-          cd /tmp/dist-build
-          git init -b main
+
           git config user.name github-actions
           git config user.email github-actions@github.com
+
+          if git ls-remote --exit-code --heads origin build; then
+            git fetch origin build:refs/remotes/origin/build
+            git worktree add -B build /tmp/build-branch origin/build
+          else
+            git worktree add --detach /tmp/build-branch
+            cd /tmp/build-branch
+            git switch --orphan build
+          fi
+
+          cd /tmp/build-branch
+          git rm -r --ignore-unmatch .
+          cp -r /tmp/dist-build/. .
+
           git add -A
-          git commit -m "chore: build dist for v${VERSION}"
-          git remote add origin "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git push origin HEAD:build --force
+          git commit --allow-empty -m "chore: build dist for v${VERSION}"
+          git push origin build
