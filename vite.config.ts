@@ -13,7 +13,6 @@ const GREATER_THAN_REGEX = />/g
 const API_BASE_META_REGEX = /<meta name="apiBase" content="[^"]*"\s*\/?>/
 const WEBSOCKET_BASE_META_REGEX = /<meta name="webSocketBase" content="[^"]*"\s*\/?>/
 const PROXY_BACKEND_META_REGEX = /<meta name="proxyBackend" content="[^"]*"\s*\/?>/
-const PROXY_WEBSOCKET_META_REGEX = /<meta name="proxyWebSocket" content="[^"]*"\s*\/?>/
 
 function getCommitHash(): string {
   try {
@@ -56,12 +55,10 @@ export default defineConfig(({ mode, command }) => {
   const apiBases = splitList(env.API_BASE).map(normalizeOrigin).filter((value): value is string => Boolean(value))
   const isVercelBuild = mode === 'vercel'
   const isCloudflareBuild = mode === 'cloudflare'
-  const isEdgeOneBuild = mode === 'edgeone'
   // Vercel Functions can proxy HTTP requests, but cannot relay WebSocket upgrades.
   const proxyBackend = isVercelBuild || env.PROXY_BACKEND?.toLowerCase() === 'true'
-  const proxyWebSocket = isEdgeOneBuild ? false : env.PROXY_WEBSOCKET?.toLowerCase() !== 'false'
   // Direct WebSocket connections need their own base when HTTP still uses a proxy.
-  const webSocketBases = proxyWebSocket ? [] : (proxyBackend ? apiBases.slice(0, 1) : apiBases)
+  const webSocketBases = proxyBackend ? apiBases.slice(0, 1) : apiBases
   const cspApi = splitList(env.CSP_API).map(normalizeOrigin).filter((value): value is string => Boolean(value))
   const cspStatic = splitList(env.CSP_STATIC).map(normalizeOrigin).filter((value): value is string => Boolean(value))
   const outboundProxy = env.HTTPS_PROXY || env.HTTP_PROXY
@@ -117,10 +114,6 @@ export default defineConfig(({ mode, command }) => {
             result = result.replace(
               PROXY_BACKEND_META_REGEX,
               `<meta name="proxyBackend" content="${proxyBackend ? 'true' : 'false'}" />`,
-            )
-            result = result.replace(
-              PROXY_WEBSOCKET_META_REGEX,
-              `<meta name="proxyWebSocket" content="${proxyWebSocket ? 'true' : 'false'}" />`,
             )
           }
           if (!isCloudflareBuild && (apiBases.length || cspApi.length || cspStatic.length)) {

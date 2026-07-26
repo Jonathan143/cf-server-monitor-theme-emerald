@@ -1,7 +1,6 @@
 export interface RuntimeConfigEnv {
   API_BASE?: string
   PROXY_BACKEND?: string
-  PROXY_WEBSOCKET?: string
 }
 
 const AMPERSAND_REGEX = /&/g
@@ -11,7 +10,6 @@ const GREATER_THAN_REGEX = />/g
 const API_BASE_META_REGEX = /<meta name="apiBase" content="[^"]*"\s*\/?>/
 const WEBSOCKET_BASE_META_REGEX = /<meta name="webSocketBase" content="[^"]*"\s*\/?>/
 const PROXY_BACKEND_META_REGEX = /<meta name="proxyBackend" content="[^"]*"\s*\/?>/
-const PROXY_WEBSOCKET_META_REGEX = /<meta name="proxyWebSocket" content="[^"]*"\s*\/?>/
 
 function enabled(value: string | undefined): boolean {
   return value?.toLowerCase() === 'true'
@@ -49,13 +47,11 @@ export async function injectRuntimeConfig(
 
   const apiBases = getApiBases(env.API_BASE)
   const proxyBackend = enabled(env.PROXY_BACKEND)
-  const proxyWebSocket = env.PROXY_WEBSOCKET?.toLowerCase() !== 'false'
-  const webSocketBases = proxyWebSocket ? [] : (proxyBackend ? apiBases.slice(0, 1) : apiBases)
+  const webSocketBases = proxyBackend ? apiBases.slice(0, 1) : apiBases
   const replacements: Array<[RegExp, string]> = [
     [API_BASE_META_REGEX, `<meta name="apiBase" content="${escapeHtml(apiBases.join(','))}" />`],
     [WEBSOCKET_BASE_META_REGEX, `<meta name="webSocketBase" content="${escapeHtml(webSocketBases.join(','))}" />`],
     [PROXY_BACKEND_META_REGEX, `<meta name="proxyBackend" content="${proxyBackend ? 'true' : 'false'}" />`],
-    [PROXY_WEBSOCKET_META_REGEX, `<meta name="proxyWebSocket" content="${proxyWebSocket ? 'true' : 'false'}" />`],
   ]
 
   let html = await response.text()
