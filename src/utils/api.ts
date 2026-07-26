@@ -153,7 +153,7 @@ export interface CfServer {
   cpu_cores?: number | string
   cpu_info?: string
   gpu?: number | string | null
-  gpu_info?: string
+  gpu_info?: string | unknown[]
   arch?: string
   os?: string
   region?: string
@@ -389,6 +389,41 @@ export function adaptThemeOptions(value: unknown): ThemeSettings {
 function finiteNumber(value: unknown): number {
   const number = Number.parseFloat(String(value ?? 0))
   return Number.isFinite(number) ? number : 0
+}
+
+function parseGpuInfo(raw: unknown): Array<{ id?: number | string, name?: string, info?: string }> {
+  if (!raw)
+    return []
+  if (Array.isArray(raw))
+    return raw as Array<{ id?: number | string, name?: string, info?: string }>
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw)
+      return Array.isArray(parsed) ? parsed : []
+    }
+    catch { return [] }
+  }
+  return []
+}
+
+function getGpuName(raw: unknown): string {
+  const list = parseGpuInfo(raw)
+  if (list.length > 0)
+    return list.map(g => g.name || g.id || 'GPU').join(' / ')
+  return String(raw ?? '')
+}
+
+function normalizeGpuInfo(raw: unknown): string {
+  if (!raw)
+    return ''
+  if (typeof raw === 'string') {
+    if (raw.startsWith('[') || raw.startsWith('{'))
+      return raw
+    return JSON.stringify([{ name: raw }])
+  }
+  if (Array.isArray(raw))
+    return JSON.stringify(raw)
+  return String(raw)
 }
 
 function numberField(source: Record<string, unknown>, ...keys: string[]): number {
@@ -820,7 +855,8 @@ export function adaptServer(server: CfServer, apiIndex: number): AdaptedServer {
       cpu_cores: finiteNumber(server.cpu_cores),
       os: server.os || '-',
       boot_time: bootTime ? new Date(bootTime).toISOString() : '',
-      gpu_name: server.gpu_info || '',
+      gpu_name: getGpuName(server.gpu_info),
+      gpu_info: normalizeGpuInfo(server.gpu_info),
       ipv4: server.ip_v4,
       ipv6: server.ip_v6,
       region: String(server.region || '').toUpperCase(),

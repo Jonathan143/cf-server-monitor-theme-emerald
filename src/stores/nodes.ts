@@ -26,6 +26,7 @@ export interface NodeData {
   os: string
   boot_time: string
   gpu_name?: string
+  gpu_info?: string
   ipv4?: string
   ipv6?: string
   region: string
@@ -158,6 +159,7 @@ const useNodesStore = defineStore('nodes', () => {
       os: client.os,
       boot_time: client.boot_time,
       gpu_name: client.gpu_name,
+      gpu_info: client.gpu_info,
       ipv4: client.ipv4,
       ipv6: client.ipv6,
       region: client.region,

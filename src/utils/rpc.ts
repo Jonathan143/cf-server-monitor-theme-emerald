@@ -12,6 +12,7 @@ export interface Client {
   os: string
   boot_time: string
   gpu_name?: string
+  gpu_info?: string
   ipv4?: string
   ipv6?: string
   region: string

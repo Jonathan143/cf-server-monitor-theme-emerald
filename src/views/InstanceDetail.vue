@@ -18,6 +18,24 @@ import { getOSImage, getOSName } from '@/utils/osImageHelper'
 import { getRegionCode, getRegionDisplayName } from '@/utils/regionHelper'
 import { getBillingCycleText, getExpireText, getExpireTextClass } from '@/utils/tagHelper'
 
+interface GpuInfo {
+  id?: number | string
+  name?: string
+  info?: string
+}
+
+function parseGpuInfo(raw: string | undefined): GpuInfo[] {
+  if (!raw)
+    return []
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  }
+  catch {
+    return []
+  }
+}
+
 const LoadChart = defineAsyncComponent(() => import('@/components/LoadChart.vue'))
 const PingChart = defineAsyncComponent(() => import('@/components/PingChart.vue'))
 
@@ -184,11 +202,27 @@ const metricCards = computed<MetricCard[]>(() => {
   ]
 })
 
+const gpuInfoList = computed(() => parseGpuInfo(data.value?.gpu_info))
+
+const gpuDisplayText = computed(() => {
+  const list = gpuInfoList.value
+  if (list.length === 0)
+    return data.value?.gpu_name || '-'
+  return list.map((g) => {
+    let text = g.name || `GPU #${g.id ?? ''}`
+    if (g.info !== undefined && g.info !== null && g.info !== '') {
+      const pct = Number.parseFloat(String(g.info))
+      text += ` (${Number.isFinite(pct) ? `${pct.toFixed(1)}%` : g.info})`
+    }
+    return text
+  }).join(' | ')
+})
+
 const hardwareInfo = computed<InfoItem[]>(() => [
   { label: 'CPU', value: data.value ? `${data.value.cpu_name} (x${data.value.cpu_cores})` : '-', icon: 'icon-park-outline:cpu' },
   { label: '架构', value: data.value?.arch ?? '-', icon: 'icon-park-outline:application-two' },
   { label: '虚拟化', value: data.value?.virtualization ?? '-', icon: 'icon-park-outline:server' },
-  { label: 'GPU', value: data.value?.gpu_name || '-', icon: 'icon-park-outline:video-one' },
+  { label: 'GPU', value: gpuDisplayText.value, icon: 'icon-park-outline:video-one' },
 ])
 
 const systemInfo = computed<InfoItem[]>(() => [
