@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
 import { computed, onMounted, ref } from 'vue'
+import { useAppStore } from '@/stores/app'
 import { getApiAssetUrl } from '@/utils/api'
+
+const appStore = useAppStore()
 
 interface VisitorGeoData {
   ip: string
@@ -383,6 +386,7 @@ onMounted(async () => {
     isp.value = geo.isp
     location.value = geo.location
     countryCode.value = geo.countryCode.toUpperCase()
+    appStore.visitorCountryCode = geo.countryCode.toUpperCase()
   }
   else {
     ip.value = '暂无法获取'

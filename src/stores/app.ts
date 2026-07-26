@@ -77,6 +77,8 @@ const useAppStore = defineStore('app', () => {
     return publicSettings.value?.themeSettings.alertContent ?? ''
   })
 
+  const visitorCountryCode = ref<string | null>(null)
+
   const earthViewMode = computed<EarthViewMode>(() => {
     return publicSettings.value?.themeSettings.earthViewMode ?? 'earth'
   })
@@ -218,6 +220,7 @@ const useAppStore = defineStore('app', () => {
     alertContent,
     earthViewMode,
     visitorInfoCardEnabled,
+    visitorCountryCode,
     hideAdminEntryWhenLoggedOut,
     disablePageAnimation,
     icpEnabled,
