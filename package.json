@@ -22,7 +22,7 @@
     "type-check": "vue-tsc --build",
     "lint": "eslint . --fix --cache",
     "lint:eslint": "eslint . --fix --cache",
-    "deploy": "wrangler deploy --keep-vars"
+    "deploy": "bunx wrangler deploy --keep-vars"
   },
   "dependencies": {
     "@iconify/vue": "^4.3.0",
