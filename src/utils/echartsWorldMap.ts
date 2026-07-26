@@ -7,7 +7,7 @@ type WorldGeoJson = Exclude<
 >
 
 const WORLD_MAP_NAME = 'cf-server-monitor-world'
-const WORLD_MAP_ASSET_URL = `${import.meta.env.BASE_URL}maps/world.json`
+const WORLD_MAP_ASSET_URL = '/assets/world.json'
 const WORLD_MAP_CACHE_KEY_PREFIX = 'cf-server-monitor-theme-emerald:world-map'
 const WORLD_MAP_CACHE_KEY = `${WORLD_MAP_CACHE_KEY_PREFIX}` // :${__BUILD_GIT_HASH__}
 
