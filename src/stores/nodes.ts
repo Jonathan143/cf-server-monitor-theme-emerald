@@ -21,6 +21,7 @@ export interface NodeData {
   name: string
   cpu_name: string
   virtualization: string
+  kernel_version: string
   arch: string
   cpu_cores: number
   os: string
@@ -154,6 +155,7 @@ const useNodesStore = defineStore('nodes', () => {
       name: client.name,
       cpu_name: client.cpu_name,
       virtualization: client.virtualization,
+      kernel_version: client.kernel_version,
       arch: client.arch,
       cpu_cores: client.cpu_cores,
       os: client.os,

@@ -160,6 +160,7 @@ export interface CfServer {
   ip_v4?: string
   ip_v6?: string
   boot_time?: string | number
+  kernel_version?: string
   agent_version?: string
   last_updated?: number | string
   timestamp?: number | string
@@ -851,6 +852,7 @@ export function adaptServer(server: CfServer, apiIndex: number): AdaptedServer {
       name: server.name || server.id,
       cpu_name: server.cpu_info || '-',
       virtualization: '-',
+      kernel_version: server.kernel_version || '-',
       arch: server.arch || '-',
       cpu_cores: finiteNumber(server.cpu_cores),
       os: server.os || '-',

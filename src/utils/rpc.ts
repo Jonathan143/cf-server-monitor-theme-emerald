@@ -7,6 +7,7 @@ export interface Client {
   name: string
   cpu_name: string
   virtualization: string
+  kernel_version: string
   arch: string
   cpu_cores: number
   os: string

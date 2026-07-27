@@ -221,7 +221,7 @@ const gpuDisplayText = computed(() => {
 const hardwareInfo = computed<InfoItem[]>(() => [
   { label: 'CPU', value: data.value ? `${data.value.cpu_name} (x${data.value.cpu_cores})` : '-', icon: 'icon-park-outline:cpu' },
   { label: '架构', value: data.value?.arch ?? '-', icon: 'icon-park-outline:application-two' },
-  { label: '虚拟化', value: data.value?.virtualization ?? '-', icon: 'icon-park-outline:server' },
+  { label: '内核', value: data.value?.kernel_version ?? '-', icon: 'icon-park-outline:server' },
   { label: 'GPU', value: gpuDisplayText.value, icon: 'icon-park-outline:video-one' },
 ])
 
