@@ -205,7 +205,7 @@ bun run preview
 ## 运行时约定
 
 - 路由：`/#/`、`/#/server/:id`
-- 后端管理入口：`${API_BASE}/#/admin`
+- 后端管理入口：`${API_BASE}#/admin`
 - 未配置 `apiBase` 时默认使用当前页面 origin
 - `PROXY_BACKEND=true` 时请求使用当前站点的 `/api`、`/flags` 和 `/os-icons`
 - 多后端模式下不支持任一源站开启 Turnstile
