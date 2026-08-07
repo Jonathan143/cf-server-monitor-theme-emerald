@@ -263,6 +263,23 @@ class InitManager {
         status.swap_total = current.swap_total
       if (!sampleHasField(sample.data, 'disk_total'))
         status.disk_total = current.disk_total
+      if (!sampleHasField(sample.data, 'disk_used', 'disk'))
+        status.disk = current.disk
+      if (!sampleHasField(sample.data, 'load_avg')) {
+        status.load = current.load
+        status.load5 = current.load5
+        status.load15 = current.load15
+      }
+      if (!sampleHasField(sample.data, 'processes'))
+        status.process = current.process
+      if (!sampleHasField(sample.data, 'tcp_conn'))
+        status.connections = current.connections
+      if (!sampleHasField(sample.data, 'udp_conn'))
+        status.connections_udp = current.connections_udp
+      if (!sampleHasField(sample.data, 'gpu'))
+        status.gpu = current.gpu
+      if (!sampleHasField(sample.data, 'temp'))
+        status.temp = current.temp
       if (!sampleHasField(
         sample.data,
         'ping_ct',
