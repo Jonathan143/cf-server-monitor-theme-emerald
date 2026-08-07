@@ -209,7 +209,7 @@ bun run preview
 - 未配置 `apiBase` 时默认使用当前页面 origin
 - `PROXY_BACKEND=true` 时请求使用当前站点的 `/api`、`/flags` 和 `/os-icons`
 - 多后端模式下不支持任一源站开启 Turnstile
-- 匿名用户仅查询 1 小时以内的历史数据，符合 CF Server Monitor API 权限限制
+- 匿名用户最多可查询近 24 小时的历史数据；单后端登录且开启长历史时最多可查询近 7 天，多后端聚合仍为 24 小时
 
 ## 致谢
 

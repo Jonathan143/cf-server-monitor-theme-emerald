@@ -1037,8 +1037,9 @@ export class CfMonitorApi {
     const configs = cachedSiteConfigs.length ? cachedSiteConfigs : await fetchSiteConfigs()
     const first = configs[0]
     const loggedIn = configs.some(config => config.authorization)
-    // 已登录时最长可看近 7 天（168h）；多后端聚合模式不支持长历史，回退到 24h
-    const historyHours = loggedIn ? (first?.show_long_history && !hasMultipleApiBases() ? 168 : 24) : 1
+    // 未登录访客最长可看 24h；已登录且开启 show_long_history 时最长可看近 7 天（168h），
+    // 多后端聚合模式不支持长历史，回退到 24h
+    const historyHours = loggedIn ? (first?.show_long_history && !hasMultipleApiBases() ? 168 : 24) : 24
     return {
       allow_cors: true,
       custom_body: '',
