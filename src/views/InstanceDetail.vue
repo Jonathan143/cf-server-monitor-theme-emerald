@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { CurrencyCode } from '@/utils/financeHelper'
 import { Icon } from '@iconify/vue'
-import { computed, defineAsyncComponent, onMounted, ref } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -13,6 +13,7 @@ import { useNodesStore } from '@/stores/nodes'
 import { getApiAssetUrl } from '@/utils/api'
 import * as financeHelper from '@/utils/financeHelper'
 import { formatBytesPerSecondWithConfig, formatBytesWithConfig, formatDateTime, formatUptimeWithFormat } from '@/utils/helper'
+import { subscribeNodeLive } from '@/utils/init'
 import { getTrafficUsed, getTrafficUsedPercentage, showTrafficProgress } from '@/utils/nodeHelper'
 import { getOSImage, getOSName } from '@/utils/osImageHelper'
 import { getRegionCode, getRegionDisplayName } from '@/utils/regionHelper'
@@ -48,13 +49,31 @@ const nodesStore = useNodesStore()
 const exchangeRates = ref(financeHelper.DEFAULT_EXCHANGE_RATES)
 const financeBaseCurrency = ref<CurrencyCode>('CNY')
 
+let unsubscribeLive: (() => void) | null = null
+
+function subscribeDetailLive(): void {
+  unsubscribeLive?.()
+  unsubscribeLive = null
+  const uuid = String(route.params.id ?? '')
+  if (uuid)
+    unsubscribeLive = subscribeNodeLive(uuid)
+}
+
 onMounted(async () => {
   window.scrollTo({ top: 0, behavior: 'instant' })
   financeBaseCurrency.value = financeHelper.getStoredFinanceCurrency()
+  subscribeDetailLive()
 
   const { rates } = await financeHelper.getDailyExchangeRates()
   exchangeRates.value = rates
 })
+
+onBeforeUnmount(() => {
+  unsubscribeLive?.()
+  unsubscribeLive = null
+})
+
+watch(() => route.params.id, subscribeDetailLive)
 
 const formatBytes = (bytes: number) => formatBytesWithConfig(bytes, appStore.byteDecimals)
 const formatBytesPerSecond = (bytes: number) => formatBytesPerSecondWithConfig(bytes, appStore.byteDecimals)

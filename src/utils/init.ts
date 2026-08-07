@@ -9,6 +9,7 @@ import {
   fetchSiteConfigs,
   getDisplayUuid,
   getRegisteredServerIds,
+  getServerSource,
   getSharedApi,
   getWebSocketBases,
   hasMultipleApiBases,
@@ -145,6 +146,10 @@ class InitManager {
   private sockets: WebSocket[] = []
   private reconnectTimers = new Map<number, ReturnType<typeof setTimeout>>()
   private reconnectAttempts = new Map<number, number>()
+  private detailSockets = new Map<string, WebSocket>()
+  private detailReconnectTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  private detailReconnectAttempts = new Map<string, number>()
+  private detailManualClose = new Set<string>()
   private liveUpdateTimer: ReturnType<typeof setInterval> | null = null
   private liveSampleQueues = new Map<string, LiveSample[]>()
   private livePlaybackTimes = new Map<string, number>()
@@ -359,6 +364,24 @@ class InitManager {
     }
   }
 
+  private parseBatchSamples(message: WsMessage): Array<{ serverId: string, samples: LiveSample[] }> {
+    return (message.updates ?? []).map(update => ({
+      serverId: update.serverId,
+      samples: (update.samples ?? []).flatMap((sample) => {
+        const data = sample.data ?? sample.payload ?? sample.metrics
+        if (!data)
+          return []
+        return [{
+          serverId: update.serverId,
+          ts: normalizeSampleTimestamp(
+            sample.ts ?? sample.timestamp ?? data.sample_timestamp ?? data.last_updated ?? data.timestamp ?? message.ts,
+          ),
+          data,
+        }]
+      }),
+    }))
+  }
+
   private connectSocket(baseUrl: string, apiIndex: number): void {
     if (this.destroyed)
       return
@@ -389,25 +412,99 @@ class InitManager {
       if (message.type !== 'batchUpdate')
         return
 
-      for (const update of message.updates ?? []) {
-        const samples = (update.samples ?? []).flatMap((sample) => {
-          const data = sample.data ?? sample.payload ?? sample.metrics
-          if (!data)
-            return []
-          return [{
-            serverId: update.serverId,
-            ts: normalizeSampleTimestamp(
-              sample.ts ?? sample.timestamp ?? data.sample_timestamp ?? data.last_updated ?? data.timestamp ?? message.ts,
-            ),
-            data,
-          }]
-        })
-        this.enqueueLiveSamples(apiIndex, update.serverId, samples)
-      }
+      for (const { serverId, samples } of this.parseBatchSamples(message))
+        this.enqueueLiveSamples(apiIndex, serverId, samples)
     })
 
     socket.addEventListener('close', () => this.scheduleReconnect(baseUrl, apiIndex))
     socket.addEventListener('error', () => socket.close())
+  }
+
+  /**
+   * 订阅单台服务器详情页专用 WebSocket（?subscribe=<serverId>）。
+   * 返回取消订阅函数；组件卸载或切换节点时调用。
+   */
+  subscribeNode(uuid: string): () => void {
+    const source = getServerSource(uuid)
+    const apiIndex = source.apiIndex
+    const serverId = source.serverId
+    const key = `${apiIndex}:${serverId}`
+    this.detailManualClose.delete(key)
+    if (!this.detailSockets.has(key)) {
+      const baseUrl = getWebSocketBases()[apiIndex] ?? ''
+      this.connectDetailSocket(baseUrl, apiIndex, serverId, key)
+    }
+    return () => this.unsubscribeNode(key)
+  }
+
+  private connectDetailSocket(baseUrl: string, apiIndex: number, serverId: string, key: string): void {
+    if (this.destroyed || this.detailManualClose.has(key))
+      return
+    const url = new URL(`${baseUrl}/api/ws?subscribe=${encodeURIComponent(serverId)}`, window.location.origin)
+    url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
+    const socket = new WebSocket(url)
+    this.detailSockets.set(key, socket)
+
+    socket.addEventListener('open', () => {
+      this.detailReconnectAttempts.set(key, 0)
+      socket.send(JSON.stringify({
+        type: 'subscribe',
+        scope: serverId,
+        ids: [serverId],
+      }))
+    })
+
+    socket.addEventListener('message', (event) => {
+      let message: WsMessage
+      try {
+        message = JSON.parse(String(event.data)) as WsMessage
+      }
+      catch {
+        return
+      }
+      if (message.type !== 'batchUpdate')
+        return
+
+      for (const { serverId: updateServerId, samples } of this.parseBatchSamples(message)) {
+        if (updateServerId !== serverId)
+          continue
+        this.enqueueLiveSamples(apiIndex, updateServerId, samples)
+      }
+    })
+
+    socket.addEventListener('close', () => {
+      if (!this.detailManualClose.has(key))
+        this.scheduleDetailReconnect(baseUrl, apiIndex, serverId, key)
+    })
+    socket.addEventListener('error', () => socket.close())
+  }
+
+  private scheduleDetailReconnect(baseUrl: string, apiIndex: number, serverId: string, key: string): void {
+    if (this.destroyed || this.detailReconnectTimers.has(key))
+      return
+    const attempts = (this.detailReconnectAttempts.get(key) ?? 0) + 1
+    this.detailReconnectAttempts.set(key, attempts)
+    const delay = Math.min(30_000, 1000 * 2 ** Math.min(attempts, 5))
+    const timer = setTimeout(() => {
+      this.detailReconnectTimers.delete(key)
+      this.connectDetailSocket(baseUrl, apiIndex, serverId, key)
+    }, delay)
+    this.detailReconnectTimers.set(key, timer)
+  }
+
+  private unsubscribeNode(key: string): void {
+    this.detailManualClose.add(key)
+    const socket = this.detailSockets.get(key)
+    if (socket) {
+      socket.close()
+      this.detailSockets.delete(key)
+    }
+    const timer = this.detailReconnectTimers.get(key)
+    if (timer) {
+      clearTimeout(timer)
+      this.detailReconnectTimers.delete(key)
+    }
+    this.detailReconnectAttempts.delete(key)
   }
 
   private scheduleReconnect(baseUrl: string, apiIndex: number): void {
@@ -430,6 +527,12 @@ class InitManager {
     this.sockets = []
     this.reconnectTimers.forEach(timer => clearTimeout(timer))
     this.reconnectTimers.clear()
+    this.detailSockets.forEach(socket => socket?.close())
+    this.detailSockets.clear()
+    this.detailReconnectTimers.forEach(timer => clearTimeout(timer))
+    this.detailReconnectTimers.clear()
+    this.detailReconnectAttempts.clear()
+    this.detailManualClose.clear()
     if (this.liveUpdateTimer)
       clearInterval(this.liveUpdateTimer)
     this.liveUpdateTimer = null
@@ -450,4 +553,8 @@ export async function initApp(): Promise<void> {
 export function destroyInitManager(): void {
   initManager?.destroy()
   initManager = null
+}
+
+export function subscribeNodeLive(uuid: string): () => void {
+  return initManager?.subscribeNode(uuid) ?? (() => {})
 }
