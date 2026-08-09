@@ -11,6 +11,7 @@
 - 卡片和表格两种节点视图
 - 多分组、搜索、地区旗帜和操作系统图标
 - CPU、内存、磁盘、流量、网络和 Ping 历史图表
+- 世界地图节点分布，支持在线/离线散点与计数
 - `CF Server Monitor` WebSocket 实时更新与断线重连
 - 单后端 Turnstile 验证
 - 多后端聚合，详情页保留数据源信息
@@ -84,6 +85,12 @@
       "value": "false",
       "options": "",
       "description": "减少页面过渡动画效果，提升访问速度和响应性"
+    },
+    {
+      "key": "offlineNodesLast",
+      "value": "false",
+      "options": "",
+      "description": "开启后离线节点默认显示到所有节点最后"
     },
     {
       "key": "icpEnabled",
