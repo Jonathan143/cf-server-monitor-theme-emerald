@@ -201,6 +201,7 @@ export interface ThemeSettings {
   visitorInfoCardEnabled: boolean
   hideAdminEntryWhenLoggedOut: boolean
   disablePageAnimation: boolean
+  offlineNodesLast: boolean
   icpEnabled: boolean
   icpNumber: string
   icpUrl: string
@@ -296,6 +297,7 @@ const DEFAULT_THEME_SETTINGS: ThemeSettings = {
   visitorInfoCardEnabled: true,
   hideAdminEntryWhenLoggedOut: false,
   disablePageAnimation: false,
+  offlineNodesLast: false,
   icpEnabled: false,
   icpNumber: '',
   icpUrl: 'https://beian.miit.gov.cn/',
@@ -372,6 +374,7 @@ export function adaptThemeOptions(value: unknown): ThemeSettings {
     visitorInfoCardEnabled: themeBoolean(options.visitorInfoCardEnabled, DEFAULT_THEME_SETTINGS.visitorInfoCardEnabled),
     hideAdminEntryWhenLoggedOut: themeBoolean(options.hideAdminEntryWhenLoggedOut, DEFAULT_THEME_SETTINGS.hideAdminEntryWhenLoggedOut),
     disablePageAnimation: themeBoolean(options.disablePageAnimation, DEFAULT_THEME_SETTINGS.disablePageAnimation),
+    offlineNodesLast: themeBoolean(options.offlineNodesLast, DEFAULT_THEME_SETTINGS.offlineNodesLast),
     icpEnabled: themeBoolean(options.icpEnabled, DEFAULT_THEME_SETTINGS.icpEnabled),
     icpNumber: themeString(options.icpNumber, DEFAULT_THEME_SETTINGS.icpNumber),
     icpUrl: themeString(options.icpUrl, DEFAULT_THEME_SETTINGS.icpUrl),
