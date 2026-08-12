@@ -1,7 +1,9 @@
 import type { MaybeRefOrGetter } from 'vue'
+import type { NodeStatusPing } from '@/utils/rpc'
 import { computed, toValue } from 'vue'
 import { NODE_PING_BAR_COUNT, useNodePingStats } from '@/composables/useNodePingStats'
 import { formatDateTime } from '@/utils/helper'
+import { getPingToneClass, PING_PROVIDERS } from '@/utils/nodeHelper'
 
 export type NodePingMetric = 'latency' | 'loss'
 
@@ -22,11 +24,11 @@ interface UseNodePingDisplayOptions {
 function getLatencyToneClass(latency: number): string {
   if (latency <= 60)
     return 'bg-emerald-600/90'
-  if (latency <= 100)
-    return 'bg-green-400/80'
-  if (latency <= 160)
+  if (latency <= 120)
+    return 'bg-green-500/80'
+  if (latency <= 180)
     return 'bg-lime-400/80'
-  if (latency <= 200)
+  if (latency <= 240)
     return 'bg-yellow-400/80'
   return 'bg-rose-500/80'
 }
@@ -35,12 +37,40 @@ function getLossToneClass(loss: number): string {
   if (loss <= 1)
     return 'bg-emerald-600/90'
   if (loss <= 3)
-    return 'bg-green-400/90'
+    return 'bg-green-500/80'
   if (loss <= 6)
-    return 'bg-lime-400/90'
+    return 'bg-lime-400/80'
   if (loss <= 9)
-    return 'bg-yellow-400/90'
+    return 'bg-yellow-400/80'
   return 'bg-rose-500/80'
+}
+
+export interface TopPingNetwork {
+  key: string
+  name: string
+  latency: string
+  toneClass: string
+  tooltip: string
+}
+
+/** 取前 3 个网络的实时延迟（CT/CU/CM），用于「三网」行 */
+export function buildTopPingNetworks(ping?: Record<string, NodeStatusPing>): TopPingNetwork[] {
+  return PING_PROVIDERS.slice(0, 3).map((provider) => {
+    const entry = ping?.[provider.key]
+    const latency = entry?.latest ?? 0
+    const loss = entry?.loss ?? 100
+    const available = latency > 0 && loss < 100
+
+    return {
+      key: provider.key,
+      name: entry?.name ?? provider.label,
+      latency: available ? `${Math.round(latency)}ms` : '--',
+      toneClass: getPingToneClass(latency, available),
+      tooltip: available
+        ? `${entry?.name ?? provider.label}\n${Math.round(latency)} ms`
+        : `${entry?.name ?? provider.label}\n暂无响应`,
+    }
+  })
 }
 
 export function useNodePingDisplay(
@@ -54,28 +84,61 @@ export function useNodePingDisplay(
     enabled: pingStatsEnabled,
   })
 
+  /**
+   * 将一小时数据集按时间平均划分为 NODE_PING_BAR_COUNT 根柱子，
+   * 每根柱取段内数据点的平均值（无论段内几条数据）。
+   */
   function buildPingBars(metric: NodePingMetric): NodePingBar[] {
     const points = pingStats.history.value
     if (!points.length)
       return []
 
-    return points.map((point, index) => {
-      const value = point[metric]
+    const barCount = Math.min(NODE_PING_BAR_COUNT, points.length)
+    const firstTime = Date.parse(points[0]!.time)
+    const lastTime = Date.parse(points.at(-1)!.time)
+    const segmentSize = Math.max(1, (lastTime - firstTime) / barCount)
 
-      return {
-        key: `${point.time}-${index}`,
+    const bars: NodePingBar[] = []
+    for (let index = 0; index < barCount; index++) {
+      const segmentStart = firstTime + index * segmentSize
+      const segmentEnd = index === barCount - 1 ? lastTime + 1 : segmentStart + segmentSize
+      const segmentPoints = points.filter((point) => {
+        const time = Date.parse(point.time)
+        return time >= segmentStart && time < segmentEnd
+      })
+
+      const latencyValues = segmentPoints
+        .map(point => point.latency)
+        .filter((value): value is number => value !== null)
+      const lossValues = segmentPoints
+        .map(point => point.loss)
+        .filter((value): value is number => value !== null)
+
+      const value = metric === 'latency'
+        ? latencyValues.length
+          ? latencyValues.reduce((sum, v) => sum + v, 0) / latencyValues.length
+          : null
+        : lossValues.length
+          ? lossValues.reduce((sum, v) => sum + v, 0) / lossValues.length
+          : null
+      const segmentTime = new Date(segmentStart).toISOString()
+
+      bars.push({
+        key: `${segmentTime}-${index}`,
         className: value === null
           ? 'bg-muted-foreground/15'
           : metric === 'latency'
             ? getLatencyToneClass(value)
             : getLossToneClass(value),
         tooltip: value === null
-          ? `${formatDateTime(point.time, 'HH:mm:ss')} N/A`
+          ? `${formatDateTime(segmentTime, 'HH:mm:ss')} N/A`
           : metric === 'latency'
-            ? `${formatDateTime(point.time, 'HH:mm:ss')}\n${Math.round(value)} ms`
-            : `${formatDateTime(point.time, 'HH:mm:ss')}\n${value.toFixed(1)}%`,
-      }
-    })
+            ? `${formatDateTime(segmentTime, 'HH:mm:ss')}\n${Math.round(value)} ms`
+            : `${formatDateTime(segmentTime, 'HH:mm:ss')}\n${value.toFixed(1)}%`,
+      })
+    }
+
+    return bars
   }
 
   function buildEmptyPingBars(metric: NodePingMetric): NodePingBar[] {

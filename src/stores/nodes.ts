@@ -106,7 +106,10 @@ interface StatusData {
 }
 
 const EARTH_SNAPSHOT_INTERVAL_MS = 60_000
-const PING_HISTORY_LIMIT = 10
+/** 延迟窗口桶长（与后端 /api/servers 窗口一致，每 2 分钟一个槽位） */
+const PING_WINDOW_BUCKET_MS = 2 * 60 * 1000
+/** 一小时数据集最多保留的 2 分钟桶数（覆盖近 1 小时） */
+const PING_HISTORY_LIMIT = 30
 
 const useNodesStore = defineStore('nodes', () => {
   // ===== 状态 =====
@@ -272,7 +275,15 @@ const useNodesStore = defineStore('nodes', () => {
     }
   }
 
+  /**
+   * 记录一次 ping 采样。按 2 分钟桶对齐 status.time 后按桶 upsert：
+   * 已存在同桶点时合并（新样本有效值覆盖，无效保留旧值），否则按时间顺序插入新桶并截断到 PING_HISTORY_LIMIT。
+   */
   function recordPingSample(uuid: string, status: NodeStatus): void {
+    const sampleTime = Date.parse(status.time)
+    if (!Number.isFinite(sampleTime))
+      return
+
     const pingEntries = Object.values(status.ping ?? {})
     const latencyValues = pingEntries
       .map(entry => entry.latest)
@@ -284,22 +295,36 @@ const useNodesStore = defineStore('nodes', () => {
     if (!latencyValues.length && !lossValues.length)
       return
 
-    const point: PingHistoryPoint = {
-      time: status.time || new Date().toISOString(),
-      latency: latencyValues.length
-        ? latencyValues.reduce((sum, value) => sum + value, 0) / latencyValues.length
-        : null,
-      loss: lossValues.length
-        ? lossValues.reduce((sum, value) => sum + value, 0) / lossValues.length
-        : null,
-    }
+    const bucketTs = Math.floor(sampleTime / PING_WINDOW_BUCKET_MS) * PING_WINDOW_BUCKET_MS
+    const latency = latencyValues.length
+      ? latencyValues.reduce((sum, value) => sum + value, 0) / latencyValues.length
+      : null
+    const loss = lossValues.length
+      ? lossValues.reduce((sum, value) => sum + value, 0) / lossValues.length
+      : null
+    const bucketTime = new Date(bucketTs).toISOString()
+
     const history = pingHistoryByUuid.value[uuid] ?? []
-    if (history.at(-1)?.time === point.time)
+    const point = history.find(item => item.time === bucketTime)
+    if (point) {
+      const nextLatency = latency ?? point.latency
+      const nextLoss = loss ?? point.loss
+      if (nextLatency === point.latency && nextLoss === point.loss)
+        return
+      pingHistoryByUuid.value = {
+        ...pingHistoryByUuid.value,
+        [uuid]: history.map(item => item === point
+          ? { time: point.time, latency: nextLatency, loss: nextLoss }
+          : item),
+      }
       return
+    }
 
     pingHistoryByUuid.value = {
       ...pingHistoryByUuid.value,
-      [uuid]: [...history, point].slice(-PING_HISTORY_LIMIT),
+      [uuid]: [...history, { time: bucketTime, latency, loss }]
+        .sort((a, b) => Date.parse(a.time) - Date.parse(b.time))
+        .slice(-PING_HISTORY_LIMIT),
     }
   }
 
@@ -347,8 +372,18 @@ const useNodesStore = defineStore('nodes', () => {
         )
       }
 
-      if (status)
-        recordPingSample(uuid, status)
+      if (status) {
+        // 后端返回一小时窗口时直接作为历史（已含最新桶），否则由实时样本逐步累积
+        if (status.pingWindow?.length) {
+          pingHistoryByUuid.value = {
+            ...pingHistoryByUuid.value,
+            [uuid]: status.pingWindow,
+          }
+        }
+        else {
+          recordPingSample(uuid, status)
+        }
+      }
     })
 
     // 移除不存在的节点

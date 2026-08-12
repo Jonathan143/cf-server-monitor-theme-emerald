@@ -48,7 +48,7 @@ const columns: ColumnConfig[] = [
   { key: 'disk', label: '硬盘', width: '100px', sortable: true },
   { key: 'traffic', label: '流量', width: '100px', sortable: true },
   { key: 'rate', label: '速率', width: '80px', sortable: true },
-  { key: 'latency', label: '延迟', width: '180px', sortable: false },
+  { key: 'latency', label: '延迟', width: '136px', sortable: false },
 ]
 
 const sortKey = ref<string>('')
@@ -234,7 +234,7 @@ function getRowTransitionStyle(index: number): Record<string, string> {
               <!-- 三网和 BGP 实时延迟 -->
               <div v-else-if="col.key === 'latency'" class="flex items-center">
                 <NodePingListCell
-                  :ping="node.ping"
+                  :node="node"
                   role="button"
                   tabindex="0"
                   class="outline-none"

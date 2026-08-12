@@ -1,5 +1,5 @@
 import type { CurrencyCode } from '@/utils/financeHelper'
-import type { Client, NodeStatus, NodeStatusPing, PingRecord, StatusRecord } from '@/utils/rpc'
+import type { Client, NodeStatus, NodeStatusPing, PingRecord, PingWindowPoint, StatusRecord } from '@/utils/rpc'
 import { isSupportedCurrency, normalizedCurrencyMap } from '@/utils/financeHelper'
 
 const ONLINE_THRESHOLD_MS = 5 * 60 * 1000
@@ -109,6 +109,15 @@ export interface SysConfig {
   show_long_history?: boolean
 }
 
+/** 一小时延迟窗口中的单个点（2 分钟桶；ct/cu/cm/bd 为探测节点值，false=探测禁用，null=无数据） */
+export interface LatencyWindowPoint {
+  ts?: number | string
+  ct?: number | string | boolean | null
+  cu?: number | string | boolean | null
+  cm?: number | string | boolean | null
+  bd?: number | string | boolean | null
+}
+
 export interface CfServer {
   id: string
   name?: string
@@ -144,6 +153,9 @@ export interface CfServer {
   loss_cu?: number | string | null
   loss_cm?: number | string | null
   loss_bd?: number | string | null
+  /** 一小时延迟窗口（最多 30 桶，旧→新），仅 /api/servers 列表返回 */
+  ping?: LatencyWindowPoint[]
+  loss?: LatencyWindowPoint[]
   ram_total?: number | string
   ram_used?: number | string
   swap_total?: number | string
@@ -828,6 +840,80 @@ function pingEntry(name: string, latency: unknown, loss: unknown): NodeStatusPin
   return { name, latest, avg: latest, tail: latest, loss: lossValue, min: latest, max: latest }
 }
 
+const PING_WINDOW_PROVIDER_KEYS = ['ct', 'cu', 'cm', 'bd'] as const
+
+function pingWindowNumber(value: unknown): number | null {
+  if (value === false || value === null || value === undefined || value === '')
+    return null
+  const number = Number.parseFloat(String(value))
+  return Number.isFinite(number) ? number : null
+}
+
+function buildPingWindowPoint(
+  ts: number,
+  pingPoint: LatencyWindowPoint | undefined,
+  lossPoint: LatencyWindowPoint | undefined,
+): PingWindowPoint | null {
+  const latencyValues = PING_WINDOW_PROVIDER_KEYS
+    .map(key => pingWindowNumber(pingPoint?.[key]))
+    .filter((value): value is number => value !== null && value > 0)
+  const lossValues = PING_WINDOW_PROVIDER_KEYS
+    .map(key => pingWindowNumber(lossPoint?.[key]))
+    .filter((value): value is number => value !== null && value >= 0)
+
+  if (!latencyValues.length && !lossValues.length)
+    return null
+
+  return {
+    time: new Date(ts).toISOString(),
+    latency: latencyValues.length
+      ? latencyValues.reduce((sum, value) => sum + value, 0) / latencyValues.length
+      : null,
+    loss: lossValues.length
+      ? lossValues.reduce((sum, value) => sum + value, 0) / lossValues.length
+      : null,
+  }
+}
+
+/** 将 /api/servers 的 ping/loss 窗口（旧→新）聚合成按 2 分钟桶的延迟/丢包点 */
+function buildPingWindow(server: CfServer): PingWindowPoint[] | undefined {
+  const ping = Array.isArray(server.ping) ? server.ping : undefined
+  const loss = Array.isArray(server.loss) ? server.loss : undefined
+  if (!ping?.length && !loss?.length)
+    return undefined
+
+  const lossByTs = new Map<number, LatencyWindowPoint>()
+  for (const point of loss ?? []) {
+    const ts = timestamp(point.ts, 0)
+    if (ts > 0)
+      lossByTs.set(ts, point)
+  }
+
+  const points: PingWindowPoint[] = []
+  for (const point of ping ?? []) {
+    const ts = timestamp(point.ts, 0)
+    if (ts <= 0)
+      continue
+    const point2 = buildPingWindowPoint(ts, point, lossByTs.get(ts))
+    if (point2)
+      points.push(point2)
+  }
+
+  // 延迟窗口为空但丢包有数据时，以丢包的 ts 生成点
+  if (!points.length) {
+    for (const point of loss ?? []) {
+      const ts = timestamp(point.ts, 0)
+      if (ts <= 0)
+        continue
+      const point2 = buildPingWindowPoint(ts, undefined, point)
+      if (point2)
+        points.push(point2)
+    }
+  }
+
+  return points.length ? points : undefined
+}
+
 export function adaptServer(server: CfServer, apiIndex: number): AdaptedServer {
   const wire = server as unknown as Record<string, unknown>
   const uuid = getDisplayUuid(apiIndex, server.id)
@@ -846,6 +932,7 @@ export function adaptServer(server: CfServer, apiIndex: number): AdaptedServer {
     cm: pingEntry('移动', server.ping_cm, server.loss_cm),
     bd: pingEntry('BGP', server.ping_bd, server.loss_bd),
   }
+  const pingWindow = buildPingWindow(server)
 
   return {
     client: {
@@ -912,6 +999,7 @@ export function adaptServer(server: CfServer, apiIndex: number): AdaptedServer {
       online,
       uptime: Math.max(0, Math.floor((now - bootTime) / 1000)),
       ping,
+      pingWindow,
     },
   }
 }

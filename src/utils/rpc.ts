@@ -50,6 +50,13 @@ export interface NodeStatusPing {
   max: number
 }
 
+/** 一小时延迟窗口中的单个 2 分钟桶（已按 ct/cu/cm/bd 聚合） */
+export interface PingWindowPoint {
+  time: string
+  latency: number | null
+  loss: number | null
+}
+
 export interface NodeStatus {
   client: string
   time: string
@@ -77,6 +84,8 @@ export interface NodeStatus {
   online: boolean
   uptime: number
   ping?: Record<string, NodeStatusPing>
+  /** /api/servers 返回的一小时延迟窗口（30 桶，旧→新），由适配器聚合生成 */
+  pingWindow?: PingWindowPoint[]
 }
 
 export interface StatusRecord {

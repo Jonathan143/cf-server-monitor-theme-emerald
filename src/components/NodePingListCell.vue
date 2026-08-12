@@ -1,38 +1,67 @@
 <script setup lang="ts">
-import type { NodeStatusPing } from '@/utils/rpc'
-import { getPingToneClass, PING_PROVIDERS } from '@/utils/nodeHelper'
+import type { NodeData } from '@/stores/nodes'
+import { computed } from 'vue'
+import { DataTooltip } from '@/components/ui/data-tooltip'
+import { buildTopPingNetworks, useNodePingDisplay } from '@/composables/useNodePingDisplay'
 
-const props = defineProps<{
-  ping?: Record<string, NodeStatusPing>
-}>()
+const props = defineProps<{ node: NodeData }>()
 
-function getProviderState(key: string, label: string) {
-  const ping = props.ping?.[key]
-  const latency = ping?.latest ?? 0
-  const loss = ping?.loss ?? 100
-  const available = latency > 0 && loss < 100
-
-  return {
-    label,
-    display: available ? `${Math.round(latency)}ms` : '--',
-    toneClass: getPingToneClass(latency, available),
-    tooltip: available
-      ? `${ping?.name ?? label}: ${Math.round(latency)}ms\n丢包 ${loss.toFixed(1)}%`
-      : `${ping?.name ?? label}: 暂无响应`,
-  }
-}
+const { latencyRenderBars, lossRenderBars } = useNodePingDisplay(props.node.uuid)
+const topPingNetworks = computed(() => buildTopPingNetworks(props.node.ping))
 </script>
 
 <template>
-  <div class="grid min-w-0 w-full grid-cols-4 gap-x-1 text-center">
-    <span v-for="provider in PING_PROVIDERS" :key="provider.key" class="flex min-w-0 flex-col">
-      <span class="text-[10px] font-medium text-muted-foreground">{{ provider.label }}</span>
-      <span
-        class="truncate text-[11px] tabular-nums"
-        :class="getProviderState(provider.key, provider.label).toneClass"
+  <div class="flex min-w-0 w-full flex-col">
+    <div v-if="topPingNetworks.length > 0" class="flex flex-row">
+      <DataTooltip
+        v-for="(net, index) in topPingNetworks" :key="net.key" placement="top"
+        :content="net.tooltip"
+        content-class="whitespace-pre-wrap w-max px-1.5 !leading-[1.2] text-[11px]"
       >
-        {{ getProviderState(provider.key, provider.label).display }}
-      </span>
-    </span>
+        <div class="truncate text-[10px]">
+          <span v-if="index" class="mx-1">·</span>
+          <span :class="net.toneClass">{{ net.latency }}</span>
+        </div>
+      </DataTooltip>
+    </div>
+    <div v-else class="truncate">
+      N/A
+    </div>
+    <div class="flex w-full flex-col gap-[1px] pr-4">
+      <div class="relative items-center gap-1">
+        <div
+          class="grid h-1 cursor-auto items-end gap-[1px] transition-all hover:h-2.5"
+          :style="{ gridTemplateColumns: `repeat(${latencyRenderBars.length}, minmax(0, 1fr))` }"
+        >
+          <DataTooltip
+            v-for="bar in latencyRenderBars" :key="bar.key" placement="top"
+            :content="bar.tooltip" class="h-full w-full"
+            content-class="whitespace-pre-wrap w-max px-1.5 !leading-[1.2] text-[11px]"
+          >
+            <span
+              class="block h-full w-full rounded-[1px] transition-all hover:scale-y-160"
+              :class="bar.className"
+            />
+          </DataTooltip>
+        </div>
+      </div>
+      <div class="relative items-center gap-1">
+        <div
+          class="grid h-1 cursor-auto items-end gap-[1px] transition-all hover:h-2.5"
+          :style="{ gridTemplateColumns: `repeat(${lossRenderBars.length}, minmax(0, 1fr))` }"
+        >
+          <DataTooltip
+            v-for="bar in lossRenderBars" :key="bar.key" placement="top"
+            :content="bar.tooltip" class="h-full w-full"
+            content-class="whitespace-pre-wrap w-max px-1.5 !leading-[1.2] text-[11px]"
+          >
+            <span
+              class="block h-full w-full rounded-[1px] transition-all hover:scale-y-160"
+              :class="bar.className"
+            />
+          </DataTooltip>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
