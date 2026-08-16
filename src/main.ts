@@ -1,6 +1,6 @@
 import { createPinia } from 'pinia'
 import { createApp } from 'vue'
-import { getDirectApiAssetUrl } from '@/utils/api'
+import { getApiAssetUrl } from '@/utils/api'
 import { setupIconify } from '@/utils/iconify'
 import { message } from '@/utils/message'
 import App from './App.vue'
@@ -10,7 +10,7 @@ import './styles/main.css'
 
 const favicon = document.createElement('link')
 favicon.rel = 'icon'
-favicon.href = getDirectApiAssetUrl('favicon.ico')
+favicon.href = getApiAssetUrl('favicon.ico')
 document.head.appendChild(favicon)
 
 window.$message = message

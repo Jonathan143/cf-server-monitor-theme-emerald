@@ -16,7 +16,7 @@ Use Bun for dependency management. Validation is ESLint plus the production buil
 
 ## Architecture
 
-- `src/utils/api.ts` owns CF Server Monitor HTTP access, runtime `apiBase` parsing, multi-site source registration, and field adaptation.
+- `src/utils/api.ts` owns CF Server Monitor HTTP access, same-origin request handling, multi-site source registration, and field adaptation.
 - `src/utils/init.ts` owns startup order, Turnstile, WebSocket subscriptions, reconnects, and periodic refresh.
 - `src/utils/rpc.ts` is a compatibility facade for Emerald chart components; it is not a JSON-RPC transport.
 - `src/stores/` remains the UI source of truth.

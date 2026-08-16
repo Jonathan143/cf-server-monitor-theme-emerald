@@ -6,12 +6,6 @@ import vue from '@vitejs/plugin-vue'
 import { HttpsProxyAgent } from 'https-proxy-agent'
 import { defineConfig, loadEnv } from 'vite'
 
-const AMPERSAND_REGEX = /&/g
-const DOUBLE_QUOTE_REGEX = /"/g
-const LESS_THAN_REGEX = /</g
-const GREATER_THAN_REGEX = />/g
-const API_BASE_META_REGEX = /<meta name="apiBase" content="[^"]*"\s*\/?>/
-
 function getCommitHash(): string {
   try {
     return execSync('git rev-parse --short HEAD', {
@@ -28,18 +22,10 @@ function splitList(value: string | undefined): string[] {
   return value?.split(',').map(item => item.trim()).filter(Boolean) ?? []
 }
 
-function escapeHtml(value: string): string {
-  return value
-    .replace(AMPERSAND_REGEX, '&amp;')
-    .replace(DOUBLE_QUOTE_REGEX, '&quot;')
-    .replace(LESS_THAN_REGEX, '&lt;')
-    .replace(GREATER_THAN_REGEX, '&gt;')
-}
-
 function normalizeOrigin(value: string): string | null {
   try {
     const url = new URL(value)
-    if (!['http:', 'https:', 'ws:', 'wss:'].includes(url.protocol))
+    if (!['http:', 'https:'].includes(url.protocol))
       return null
     return url.origin
   }
@@ -48,34 +34,11 @@ function normalizeOrigin(value: string): string | null {
   }
 }
 
-export default defineConfig(({ mode, command }) => {
+export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const apiBases = splitList(env.API_BASE).map(normalizeOrigin).filter((value): value is string => Boolean(value))
-  const cspApi = splitList(env.CSP_API).map(normalizeOrigin).filter((value): value is string => Boolean(value))
-  const cspStatic = splitList(env.CSP_STATIC).map(normalizeOrigin).filter((value): value is string => Boolean(value))
   const outboundProxy = env.HTTPS_PROXY || env.HTTP_PROXY
   const outboundProxyAgent = outboundProxy ? new HttpsProxyAgent(outboundProxy) : undefined
-  const connectOrigins = new Set<string>([
-    ...apiBases,
-    ...cspApi,
-    'https://api.iconify.design',
-    'https://api.unisvg.com',
-    'https://api.simplesvg.com',
-    'https://api.frankfurter.app',
-    'https://api.frankfurter.dev',
-    'https://open.er-api.com',
-    'https://api.ip.sb',
-    'https://ipwho.is',
-    'https://api.ipapi.is',
-    'https://ipapi.co',
-    'https://api.vore.top',
-  ])
-  for (const origin of [...connectOrigins]) {
-    if (origin.startsWith('https://'))
-      connectOrigins.add(origin.replace('https://', 'wss://'))
-    if (origin.startsWith('http://'))
-      connectOrigins.add(origin.replace('http://', 'ws://'))
-  }
 
   return {
     base: env.BASE_PATH || './',
@@ -86,34 +49,6 @@ export default defineConfig(({ mode, command }) => {
     plugins: [
       vue(),
       tailwindcss(),
-      {
-        name: 'cf-server-monitor-runtime-config',
-        transformIndexHtml(html) {
-          let result = html
-          if (command === 'build' && apiBases.length) {
-            result = result.replace(
-              API_BASE_META_REGEX,
-              `<meta name="apiBase" content="${escapeHtml(apiBases.join(','))}" />`,
-            )
-          }
-          if (apiBases.length || cspApi.length || cspStatic.length) {
-            const staticOrigins = cspStatic.join(' ')
-            const csp = [
-              'default-src \'self\'',
-              `script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com ${staticOrigins}`,
-              `style-src 'self' 'unsafe-inline' https://challenges.cloudflare.com ${staticOrigins}`,
-              `img-src 'self' data: https: ${staticOrigins}`,
-              `font-src 'self' data: ${staticOrigins}`,
-              `connect-src 'self' ${[...connectOrigins].join(' ')}`,
-              'frame-src https://challenges.cloudflare.com',
-              'object-src \'none\'',
-              'base-uri \'self\'',
-            ].join('; ')
-            result = result.replace('</head>', `<meta http-equiv="Content-Security-Policy" content="${csp}" /></head>`)
-          }
-          return result
-        },
-      },
     ],
     resolve: {
       alias: {

@@ -458,36 +458,16 @@ function timestamp(value: unknown, fallback = Date.now()): number {
   return number < 1e12 ? number * 1000 : number
 }
 
-function getMetaContent(name: string): string {
-  if (typeof document === 'undefined')
-    return ''
-  return document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content?.trim() ?? ''
-}
-
 function normalizeBase(value: string): string {
   return value.trim().replace(TRAILING_SLASHES_REGEX, '')
 }
 
-function getConfiguredApiBases(): string[] {
-  return getMetaContent('apiBase').split(',').map(normalizeBase).filter(Boolean)
-}
-
 export function getApiBases(): string[] {
-  const bases = getConfiguredApiBases()
-  if (bases.length)
-    return [...new Set(bases)]
   return [typeof window === 'undefined' ? '' : window.location.origin]
 }
 
 export function getWebSocketBases(): string[] {
   return getApiBases()
-}
-
-export function getDirectApiAssetUrl(path: string, apiIndex = 0): string {
-  const bases = getConfiguredApiBases()
-  const base = bases[apiIndex] ?? bases[0] ?? ''
-  const cleanPath = path.replace(LEADING_SLASHES_REGEX, '')
-  return base ? `${base}/${cleanPath}` : getApiAssetUrl(path, apiIndex)
 }
 
 export function getApiAssetUrl(path: string, apiIndex = 0): string {
@@ -1108,10 +1088,8 @@ export async function fetchServer(uuid: string): Promise<CfServer> {
   return request<CfServer>(`/api/server?id=${encodeURIComponent(source.serverId)}`, source.apiIndex)
 }
 
-export function buildAdminUrl(apiIndex = 0): string {
-  const bases = getConfiguredApiBases()
-  const base = bases[apiIndex] ?? bases[0] ?? window.location.origin
-  return `${base}/admin#/admin`
+export function buildAdminUrl(): string {
+  return `${window.location.origin}/admin#/admin`
 }
 
 export class CfMonitorApi {

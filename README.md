@@ -12,7 +12,6 @@
 - 世界地图节点分布，支持在线/离线散点与计数
 - `CF Server Monitor` WebSocket 实时更新与断线重连
 - 单后端 Turnstile 验证
-- 多后端聚合，详情页保留数据源信息
 - 深色、浅色和跟随系统主题
 
 ## 主题设置
@@ -164,14 +163,12 @@ bun run dev
 
 ```dotenv
 API_BASE=https://monitor.example.com
-CSP_API=
-CSP_STATIC=
 BASE_PATH=./
 ```
 
 `API_BASE` 支持用英文逗号配置多个 Worker。开发模式会把同源 `/api` 请求代理到单个 `API_BASE`，避免本地 CORS 限制。
 
-HTTP 与 WebSocket 请求均直连 `API_BASE`，跨域部署时需在 CF Server Monitor Worker 中配置 `CORS_ALLOWED_ORIGINS`。
+生产环境采用同源部署：由 Web 服务器（如 Nginx）托管 `dist/` 静态文件，并将 `/api`、`/flags`、`/os-icons` 和 `/api/ws` 反向代理到 CF Server Monitor Worker。
 
 ## 构建
 
@@ -180,8 +177,6 @@ bun run lint
 bun run build
 bun run preview
 ```
-
-产物位于 `dist/`。构建会将 `API_BASE` 写入 `index.html` 的 `meta[name="apiBase"]`。跨域直连部署还需在 CF Server Monitor Worker 中将站点域名加入 `CORS_ALLOWED_ORIGINS`。
 
 自定义域名和其他静态平台通常保留 `BASE_PATH=./` 即可。
 
@@ -195,10 +190,9 @@ bun run preview
 ## 运行时约定
 
 - 路由：`/#/`、`/#/server/:id`
-- 后端管理入口：`${API_BASE}#/admin`
-- 未配置 `apiBase` 时默认使用当前页面 origin
-- 多后端模式下不支持任一源站开启 Turnstile
-- 匿名用户最多可查询近 24 小时的历史数据；单后端登录且开启长历史时最多可查询近 7 天，多后端聚合仍为 24 小时
+- 后端管理入口：`${origin}#/admin`
+- 后端地址为当前页面 origin（同源部署）
+- 匿名用户最多可查询近 24 小时的历史数据；登录且开启长历史时最多可查询近 7 天
 
 ## 致谢
 

@@ -178,7 +178,7 @@ class InitManager {
         document.title = config.site_title
 
       if (config && !isEnabledValue(config.is_public) && !config.authorization) {
-        window.location.href = buildAdminUrl(0)
+        window.location.href = buildAdminUrl()
         return
       }
 
