@@ -2,8 +2,6 @@
 
 <p align="center">基于 Vue 3 + Vite + reka-ui + Tailwind CSS v4 构建的 CF Server Monitor主题</p>
 
-<p align="center">支持一键部署到 Vercel、Cloudflare、EdgeOne，也可自部署到 VPS 或其他静态服务器。</p>
-
 ![preview](/docs/preview.png)
 
 ## 功能
@@ -16,20 +14,6 @@
 - 单后端 Turnstile 验证
 - 多后端聚合，详情页保留数据源信息
 - 深色、浅色和跟随系统主题
-- Hash 路由，可部署到 `Vercel` `Cloudflare` `EdgeOne` 或其他静态服务器
-
-## 一键部署
-
-| 平台             | 一键部署                                                                                                                                                                                                                                          | PROXY_BACKEND    |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
-| Vercel           | [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/Tokinx/cf-server-monitor-theme-emerald)                                                                                         | **true** / false |
-| Cloudflare       | [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Tokinx/cf-server-monitor-theme-emerald)                                                                     | **true** / false |
-| EdgeOne (Global) | [![使用 EdgeOne Makers 部署](https://cdnstatic.tencentcs.com/edgeone/pages/deploy.svg)](https://edgeone.ai/pages/new?repository-url=https://github.com/Tokinx/cf-server-monitor-theme-emerald&env=API_BASE,PROXY_BACKEND)                         | **true** / false |
-| EdgeOne (国内)   | [![使用 EdgeOne Makers 部署](https://cdnstatic.tencentcs.com/edgeone/pages/deploy.svg)](https://console.cloud.tencent.com/edgeone/makers/new?repository-url=https://github.com/Tokinx/cf-server-monitor-theme-emerald&env=API_BASE,PROXY_BACKEND) | **true** / false |
-
-- `API_BASE` 是 CF Server Monitor Worker 的地址，例如 `https://monitor.example.com`。
-- `PROXY_BACKEND` 开启后 `/api`、`/flags`、`/os-icons` 将通过代理转发到 `API_BASE`，可起到一定的加速作用
-- Cloudflare Workers / Pages 会在返回页面时读取运行时环境变量，无需在 Vite 构建阶段额外注入；在 Cloudflare 控制台修改变量并重新部署后即可生效。
 
 ## 主题设置
 
@@ -180,15 +164,14 @@ bun run dev
 
 ```dotenv
 API_BASE=https://monitor.example.com
-PROXY_BACKEND=false
 CSP_API=
 CSP_STATIC=
 BASE_PATH=./
 ```
 
-`API_BASE` 支持用英文逗号配置多个 Worker。开发模式会把同源 `/api` 请求代理到单个 `API_BASE`，避免本地 CORS 限制。Cloudflare 部署会从 `wrangler.toml`（Pages 则为 `wrangler.pages.toml`）的 `[vars]` 读取这些配置，并在运行时写入页面。
+`API_BASE` 支持用英文逗号配置多个 Worker。开发模式会把同源 `/api` 请求代理到单个 `API_BASE`，避免本地 CORS 限制。
 
-当设置 `PROXY_BACKEND=true` 时，HTTP 请求使用同源 `/api`、`/flags/xxx` 和 `/os-icons/xxx`，这要求部署平台提供反向代理。WebSocket 连接使用 `webSocketBase` meta 指定的地址，未指定时回退到 `API_BASE`；`PROXY_BACKEND=false` 时 WebSocket 直连 `API_BASE`。
+HTTP 与 WebSocket 请求均直连 `API_BASE`，跨域部署时需在 CF Server Monitor Worker 中配置 `CORS_ALLOWED_ORIGINS`。
 
 ## 构建
 
@@ -198,7 +181,7 @@ bun run build
 bun run preview
 ```
 
-产物位于 `dist/`。纯静态部署时，构建会将 `API_BASE` 写入 `index.html` 的 `meta[name="apiBase"]`；Cloudflare Workers / Pages 则由运行时中间件写入。跨域直连部署还需在 CF Server Monitor Worker 中将站点域名加入 `CORS_ALLOWED_ORIGINS`。
+产物位于 `dist/`。构建会将 `API_BASE` 写入 `index.html` 的 `meta[name="apiBase"]`。跨域直连部署还需在 CF Server Monitor Worker 中将站点域名加入 `CORS_ALLOWED_ORIGINS`。
 
 自定义域名和其他静态平台通常保留 `BASE_PATH=./` 即可。
 
@@ -214,7 +197,6 @@ bun run preview
 - 路由：`/#/`、`/#/server/:id`
 - 后端管理入口：`${API_BASE}#/admin`
 - 未配置 `apiBase` 时默认使用当前页面 origin
-- `PROXY_BACKEND=true` 时请求使用当前站点的 `/api`、`/flags` 和 `/os-icons`
 - 多后端模式下不支持任一源站开启 Turnstile
 - 匿名用户最多可查询近 24 小时的历史数据；单后端登录且开启长历史时最多可查询近 7 天，多后端聚合仍为 24 小时
 

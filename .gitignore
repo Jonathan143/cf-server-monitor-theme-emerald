@@ -43,3 +43,5 @@ __screenshots__/
 *.timestamp-*-*.mjs
 
 .mimocode
+.mimosa
+.zcode

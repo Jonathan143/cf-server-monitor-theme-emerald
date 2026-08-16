@@ -8,6 +8,6 @@
 - `utils/init.ts` owns startup, Turnstile, WebSocket and refresh lifecycle.
 - `utils/rpc.ts` exists only as an adapter for chart code inherited from Emerald.
 - Use existing reka-ui wrappers under `components/ui/` and Tailwind utilities.
-- Use `publicAsset()` for public files so GitHub Pages subpaths keep working.
+- Use `publicAsset()` for public files so subpath deployments keep working.
 - Do not add Cobe, Naive UI, UnoCSS, SCSS, or browser-history routing.
 - Validate with `bun run lint` and `bun run build`.

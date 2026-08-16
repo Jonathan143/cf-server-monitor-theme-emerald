@@ -472,14 +472,7 @@ function getConfiguredApiBases(): string[] {
   return getMetaContent('apiBase').split(',').map(normalizeBase).filter(Boolean)
 }
 
-export function isProxyBackendEnabled(): boolean {
-  return getMetaContent('proxyBackend').toLowerCase() === 'true'
-}
-
 export function getApiBases(): string[] {
-  if (isProxyBackendEnabled())
-    return ['']
-
   const bases = getConfiguredApiBases()
   if (bases.length)
     return [...new Set(bases)]
@@ -487,9 +480,7 @@ export function getApiBases(): string[] {
 }
 
 export function getWebSocketBases(): string[] {
-  const configured = getMetaContent('webSocketBase')
-  const bases = configured.split(',').map(normalizeBase).filter(Boolean)
-  return bases.length ? [...new Set(bases)] : getApiBases()
+  return getApiBases()
 }
 
 export function getDirectApiAssetUrl(path: string, apiIndex = 0): string {
