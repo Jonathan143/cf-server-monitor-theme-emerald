@@ -1,10 +1,10 @@
-import type { EarthViewMode, NodeViewMode, PublicSettings } from '@/utils/api'
+import type { EarthViewMode, NodeViewMode, PublicSettings, ThemeMode } from '@/utils/api'
 import type { ByteDecimalsConfig } from '@/utils/helper'
 import { usePreferredDark, useStorageAsync } from '@vueuse/core'
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 
-export type ThemeMode = 'auto' | 'light' | 'dark'
+export type { ThemeMode }
 type Lang = 'zh-CN' | 'en-US'
 
 /** 固定的字节精度配置 */
@@ -23,8 +23,8 @@ function isValidThemeMode(value: unknown): value is ThemeMode {
 const useAppStore = defineStore('app', () => {
   const loading = ref<boolean>(true)
 
-  // 使用 VueUse 的 useStorageAsync 实现自动持久化
-  const themeMode = useStorageAsync<ThemeMode>('themeMode', 'auto', localStorage)
+  // 使用 VueUse 的 useStorageAsync 实现自动持久化；null 表示用户未手动选择，回退到服务端默认主题模式
+  const storedThemeMode = useStorageAsync<ThemeMode | null>('themeMode', null, localStorage)
   const lang = ref<Lang>('zh-CN')
   const publicSettings = ref<PublicSettings>()
   const nodeSelectedGroup = useStorageAsync<string>('nodeSelectedGroup', 'all', localStorage)
@@ -40,6 +40,11 @@ const useAppStore = defineStore('app', () => {
   // 计算属性：从主题配置获取默认视图模式
   const defaultViewMode = computed<NodeViewMode>(() => {
     return publicSettings.value?.themeSettings.defaultViewMode ?? 'card'
+  })
+
+  // 计算属性：从主题配置获取默认主题模式
+  const defaultThemeMode = computed<ThemeMode>(() => {
+    return publicSettings.value?.themeSettings.defaultThemeMode ?? 'auto'
   })
 
   // 校验视图模式是否为合法值
@@ -162,11 +167,25 @@ const useAppStore = defineStore('app', () => {
   // 使用 VueUse 的 usePreferredDark 检测系统主题偏好
   const prefersDark = usePreferredDark()
 
-  watch(themeMode, (mode) => {
-    if (!isValidThemeMode(mode)) {
-      themeMode.value = 'auto'
+  // 校验存储的主题模式；非法值时清除，回退到默认主题模式
+  watch(storedThemeMode, (mode) => {
+    if (mode !== null && !isValidThemeMode(mode)) {
+      storedThemeMode.value = null
     }
   }, { immediate: true })
+
+  // 当前实际使用的主题模式：用户手动选择优先，未选择时使用服务端默认主题模式
+  const themeMode = computed<ThemeMode>({
+    get: () => {
+      if (storedThemeMode.value !== null && isValidThemeMode(storedThemeMode.value)) {
+        return storedThemeMode.value
+      }
+      return defaultThemeMode.value
+    },
+    set: (val) => {
+      storedThemeMode.value = val
+    },
+  })
 
   // 计算当前是否为暗色模式
   const isDark = computed(() => {
@@ -219,6 +238,7 @@ const useAppStore = defineStore('app', () => {
     nodeSelectedGroup,
     nodeViewMode,
     defaultViewMode,
+    defaultThemeMode,
     byteDecimals,
     alertEnabled,
     alertTitle,

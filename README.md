@@ -22,6 +22,12 @@
 {
   "configuration": [
     {
+      "key": "defaultThemeMode",
+      "value": "auto",
+      "options": "auto,light,dark",
+      "description": "访客的默认主题模式：auto 跟随系统，light 浅色，dark 深色（用户手动切换后以用户选择为准）"
+    },
+    {
       "key": "defaultViewMode",
       "value": "card",
       "options": "card,list",

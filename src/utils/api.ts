@@ -200,11 +200,13 @@ export interface ServersResponse {
   sysConfig?: SysConfig
 }
 
+export type ThemeMode = 'auto' | 'light' | 'dark'
 export type NodeViewMode = 'card' | 'list'
 export type EarthViewMode = 'earth' | 'earth-stop' | 'maps' | 'cards' | 'hide'
 export type BackgroundType = 'image' | 'video'
 
 export interface ThemeSettings {
+  defaultThemeMode: ThemeMode
   defaultViewMode: NodeViewMode
   alertEnabled: boolean
   alertTitle: string
@@ -302,6 +304,7 @@ function enabled(value: unknown): boolean {
 
 const DEFAULT_THEME_SETTINGS: ThemeSettings = {
   defaultViewMode: 'card',
+  defaultThemeMode: 'auto',
   alertEnabled: false,
   alertTitle: '',
   alertContent: '',
@@ -379,6 +382,7 @@ export function adaptThemeOptions(value: unknown): ThemeSettings {
   const options = themeOptionValues(value)
   return {
     defaultViewMode: themeEnum(options.defaultViewMode, DEFAULT_THEME_SETTINGS.defaultViewMode, ['card', 'list']),
+    defaultThemeMode: themeEnum(options.defaultThemeMode, DEFAULT_THEME_SETTINGS.defaultThemeMode, ['auto', 'light', 'dark']),
     alertEnabled: themeBoolean(options.alertEnabled, DEFAULT_THEME_SETTINGS.alertEnabled),
     alertTitle: themeString(options.alertTitle, DEFAULT_THEME_SETTINGS.alertTitle),
     alertContent: themeString(options.alertContent, DEFAULT_THEME_SETTINGS.alertContent),
