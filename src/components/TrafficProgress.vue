@@ -43,20 +43,6 @@ const totalPercentage = computed(() => {
   return Math.min((usedTraffic.value / props.trafficLimit) * 100, 100)
 })
 
-const uploadPercentage = computed(() => {
-  if (props.trafficLimit <= 0)
-    return 0
-  return Math.min((props.upload / props.trafficLimit) * 100, 100)
-})
-
-const downloadPercentage = computed(() => {
-  if (props.trafficLimit <= 0)
-    return 0
-  return Math.min((props.download / props.trafficLimit) * 100, 100)
-})
-
-const isDualColorMode = computed(() => props.trafficLimitType === 'sum')
-
 const progressHeight = computed(() => {
   if (props.height === undefined)
     return undefined
@@ -76,16 +62,7 @@ const trafficToneClass = computed(() => {
 
 <template>
   <div class="traffic-progress">
-    <div v-if="isDualColorMode" class="traffic-progress__rail bg-muted" :style="{ height: progressHeight }">
-      <div class="traffic-progress__fill" :class="trafficToneClass || 'bg-green-600'" :style="{ width: `${uploadPercentage}%` }" />
-      <div
-        class="traffic-progress__fill traffic-progress__fill--last"
-        :class="trafficToneClass || 'bg-blue-600'"
-        :style="{ width: `${downloadPercentage}%` }"
-      />
-    </div>
-
-    <div v-else class="traffic-progress__rail bg-muted" :style="{ height: progressHeight }">
+    <div class="traffic-progress__rail bg-muted" :style="{ height: progressHeight }">
       <div
         class="traffic-progress__fill traffic-progress__fill--last"
         :class="trafficToneClass || 'bg-green-600'"
