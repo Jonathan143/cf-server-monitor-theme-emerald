@@ -12,7 +12,7 @@ import { useAppStore } from '@/stores/app'
 import { useNodesStore } from '@/stores/nodes'
 import { getApiAssetUrl } from '@/utils/api'
 import { formatBytesPerSecondWithConfig, formatBytesWithConfig, formatDateTime, formatUptimeWithFormat, getStatus } from '@/utils/helper'
-import { formatOfflineTime, getCustomTags, getPriceTags, getRemainingTimeTagClass, getTrafficUsed, getTrafficUsedPercentage, hasRegion, showTrafficProgress } from '@/utils/nodeHelper'
+import { formatOfflineTime, getCustomTags, getPriceTags, getRemainingTimeTagClass, getTrafficLevel, getTrafficUsed, getTrafficUsedPercentage, hasRegion, showTrafficProgress } from '@/utils/nodeHelper'
 import { getOSImage, getOSName } from '@/utils/osImageHelper'
 import { getRegionCode, getRegionDisplayName } from '@/utils/regionHelper'
 
@@ -40,6 +40,7 @@ const diskPercentage = computed(() => (props.node.disk ?? 0) / (props.node.disk_
 const diskStatus = computed(() => getStatus(diskPercentage.value))
 
 const trafficUsedPercentage = computed(() => getTrafficUsedPercentage(props.node))
+const trafficStatus = computed(() => getTrafficLevel(trafficUsedPercentage.value))
 const trafficUsed = computed(() => getTrafficUsed(props.node))
 const priceTags = computed(() => getPriceTags(props.node, appStore.lang))
 const remainingTimeTagClass = computed(() => getRemainingTimeTagClass(props.node))
@@ -153,7 +154,7 @@ function openPingDialog() {
               </span>
               <span>{{ trafficUsedPercentage.toFixed(1) }}%</span>
             </div>
-            <ProgressThin :percentage="trafficUsedPercentage" status="success" :height="4" />
+            <ProgressThin :percentage="trafficUsedPercentage" :status="trafficStatus" :height="4" />
             <DataTooltip placement="top" class="block">
               <div class="text-[11px] text-muted-foreground truncate">
                 {{ formatBytes(trafficUsed) }} /

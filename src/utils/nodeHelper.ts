@@ -77,6 +77,20 @@ export function getTrafficUsedPercentage(node: NodeData): number {
   return Math.min((getTrafficUsed(node) / node.traffic_limit) * 100, 100)
 }
 
+/** 流量进度警戒阈值：>= 80% 黄色，>= 95% 红色 */
+export const TRAFFIC_WARNING_PERCENT = 80
+export const TRAFFIC_DANGER_PERCENT = 95
+
+export type TrafficLevel = 'success' | 'warning' | 'error'
+
+export function getTrafficLevel(percentage: number): TrafficLevel {
+  if (percentage >= TRAFFIC_DANGER_PERCENT)
+    return 'error'
+  if (percentage >= TRAFFIC_WARNING_PERCENT)
+    return 'warning'
+  return 'success'
+}
+
 /**
  * 格式化离线时间
  */

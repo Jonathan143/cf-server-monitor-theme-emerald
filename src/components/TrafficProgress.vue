@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { formatBytes } from '@/utils/helper'
+import { getTrafficLevel } from '@/utils/nodeHelper'
 
 export interface TrafficProgressProps {
   upload: number
@@ -61,21 +62,33 @@ const progressHeight = computed(() => {
     return undefined
   return typeof props.height === 'number' ? `${props.height}px` : props.height
 })
+
+/** 达到流量警戒阈值时整条进度条切换颜色（<80 保持原色，>=80 黄，>=95 红） */
+const trafficToneClass = computed(() => {
+  const level = getTrafficLevel(totalPercentage.value)
+  if (level === 'error')
+    return 'bg-red-600'
+  if (level === 'warning')
+    return 'bg-yellow-500'
+  return ''
+})
 </script>
 
 <template>
   <div class="traffic-progress">
     <div v-if="isDualColorMode" class="traffic-progress__rail bg-muted" :style="{ height: progressHeight }">
-      <div class="traffic-progress__fill bg-green-600" :style="{ width: `${uploadPercentage}%` }" />
+      <div class="traffic-progress__fill" :class="trafficToneClass || 'bg-green-600'" :style="{ width: `${uploadPercentage}%` }" />
       <div
-        class="traffic-progress__fill traffic-progress__fill--last bg-blue-600"
+        class="traffic-progress__fill traffic-progress__fill--last"
+        :class="trafficToneClass || 'bg-blue-600'"
         :style="{ width: `${downloadPercentage}%` }"
       />
     </div>
 
     <div v-else class="traffic-progress__rail bg-muted" :style="{ height: progressHeight }">
       <div
-        class="traffic-progress__fill traffic-progress__fill--last bg-green-600"
+        class="traffic-progress__fill traffic-progress__fill--last"
+        :class="trafficToneClass || 'bg-green-600'"
         :style="{ width: `${totalPercentage}%` }"
       />
     </div>
