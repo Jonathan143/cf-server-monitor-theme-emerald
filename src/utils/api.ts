@@ -99,6 +99,11 @@ export interface SiteConfig {
   turnstile_verified?: string | null
   show_long_history?: boolean
   theme_options?: unknown
+  /** 一小时延迟窗口配置（points=输出桶数，hours=窗口时长），前端据此对齐首页 ping/loss 数据粒度 */
+  latency_window?: {
+    points?: number
+    hours?: number
+  }
 }
 
 export interface SysConfig {
@@ -107,6 +112,8 @@ export interface SysConfig {
   show_tf?: boolean
   show_time?: boolean
   show_long_history?: boolean
+  /** 后端开关：是否在 /api/servers 输出 ping/loss 一小时窗口；关闭时主题回退到单条 ping 数据 */
+  show_three_net_details?: boolean
 }
 
 /** 一小时延迟窗口中的单个点（2 分钟桶；ct/cu/cm/bd 为探测节点值，false=探测禁用，null=无数据） */
@@ -153,7 +160,7 @@ export interface CfServer {
   loss_cu?: number | string | null
   loss_cm?: number | string | null
   loss_bd?: number | string | null
-  /** 一小时延迟窗口（最多 30 桶，旧→新），仅 /api/servers 列表返回 */
+  /** 一小时延迟窗口（旧→新，桶数与区间由 /api/config 的 latency_window 决定），仅 /api/servers 列表返回 */
   ping?: LatencyWindowPoint[]
   loss?: LatencyWindowPoint[]
   ram_total?: number | string
@@ -850,7 +857,7 @@ function buildPingWindowPoint(
   }
 }
 
-/** 将 /api/servers 的 ping/loss 窗口（旧→新）聚合成按 2 分钟桶的延迟/丢包点 */
+/** 将 /api/servers 的 ping/loss 窗口（旧→新）按时间戳对齐聚合成延迟/丢包点 */
 function buildPingWindow(server: CfServer): PingWindowPoint[] | undefined {
   const ping = Array.isArray(server.ping) ? server.ping : undefined
   const loss = Array.isArray(server.loss) ? server.loss : undefined
@@ -983,6 +990,8 @@ export async function fetchAllServers(): Promise<{
   clients: Record<string, Client>
   statuses: Record<string, NodeStatus>
   latestReportUpdates: Array<{ apiIndex: number, updates: LatestReportUpdate[] }>
+  /** 首个带 sysConfig 的响应（多后端取第一个），无则 undefined */
+  sysConfig?: SysConfig
 }> {
   sourceRegistry.clear()
   const responses = await Promise.all(getApiBases().map((_, index) => request<ServersResponse>('/api/servers', index)))
@@ -999,7 +1008,12 @@ export async function fetchAllServers(): Promise<{
       latestReportUpdates.push({ apiIndex, updates: response.latestReportUpdates })
     }
   })
-  return { clients, statuses, latestReportUpdates }
+  return {
+    clients,
+    statuses,
+    latestReportUpdates,
+    sysConfig: responses.find(response => response.sysConfig)?.sysConfig,
+  }
 }
 
 function rowToStatusRecord(uuid: string, row: HistoryRow): StatusRecord {
