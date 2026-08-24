@@ -109,8 +109,8 @@ const EARTH_SNAPSHOT_INTERVAL_MS = 60_000
 
 /** 首页 ping/loss 历史摄取配置（由后端 /api/config 与 /api/servers 下发，缺省时回退旧行为） */
 interface PingHistoryConfig {
-  /** 后端 show_three_net_details：是否消费 /api/servers 返回的一小时 ping/loss 窗口 */
-  showWindow: boolean
+  /** 后端 show_three_net_details：是否显示/消费三网延迟丢包详情（false 时卡片/列表隐藏相应信息） */
+  showThreeNetDetails: boolean
   /** latency_window.points：保留的桶数 */
   points: number
   /** latency_window.hours：窗口时长（小时），桶长 = hours / points */
@@ -119,7 +119,7 @@ interface PingHistoryConfig {
 
 const PING_HISTORY_DEFAULTS: PingHistoryConfig = {
   // 旧后端无 latency_window / show_three_net_details：30 桶 × 2 分钟 = 1 小时
-  showWindow: true,
+  showThreeNetDetails: true,
   points: 30,
   hours: 1,
 }
@@ -158,6 +158,9 @@ const useNodesStore = defineStore('nodes', () => {
     })
     return map
   })
+
+  /** 后端 show_three_net_details：false 时卡片/列表隐藏三网延迟丢包信息 */
+  const showThreeNetDetails = computed(() => pingHistoryConfig.value.showThreeNetDetails)
 
   // ===== 方法 =====
 
@@ -296,7 +299,7 @@ const useNodesStore = defineStore('nodes', () => {
   }
 
   /**
-   * 按后端配置调整 ping 历史摄取策略：showWindow 决定是否消费窗口，points/hours 决定桶长与保留条数。
+   * 按后端配置调整 ping 历史摄取策略：showThreeNetDetails 决定是否消费窗口，points/hours 决定桶长与保留条数。
    * 缺省字段保持默认值（兼容旧后端）。
    */
   function configurePingHistory(config: Partial<PingHistoryConfig>): void {
@@ -307,7 +310,7 @@ const useNodesStore = defineStore('nodes', () => {
       ? config.hours!
       : PING_HISTORY_DEFAULTS.hours
     pingHistoryConfig.value = {
-      showWindow: config.showWindow ?? PING_HISTORY_DEFAULTS.showWindow,
+      showThreeNetDetails: config.showThreeNetDetails ?? PING_HISTORY_DEFAULTS.showThreeNetDetails,
       points,
       hours,
     }
@@ -413,7 +416,7 @@ const useNodesStore = defineStore('nodes', () => {
       if (status) {
         // 开关开启且后端返回窗口时直接作为历史（已含最新桶），
         // 否则（开关关闭 / 窗口缺失）由实时样本按单条 ping 值逐步累积
-        if (pingHistoryConfig.value.showWindow && status.pingWindow?.length) {
+        if (pingHistoryConfig.value.showThreeNetDetails && status.pingWindow?.length) {
           pingHistoryByUuid.value = {
             ...pingHistoryByUuid.value,
             [uuid]: status.pingWindow.slice(-pingHistoryConfig.value.points),
@@ -563,6 +566,7 @@ const useNodesStore = defineStore('nodes', () => {
     totalCount,
     groups,
     nodesByUuid,
+    showThreeNetDetails,
     // 方法
     initNodes,
     updateNodeStatuses,

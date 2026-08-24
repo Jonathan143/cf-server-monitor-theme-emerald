@@ -208,11 +208,11 @@ class InitManager {
   private async loadNodes(): Promise<void> {
     try {
       const { clients, statuses, latestReportUpdates, sysConfig } = await fetchAllServers()
-      // 后端开关控制：关闭时忽略 ping/loss 窗口，回退单条 ping 数据累积（否则首页拿不到详细数据）
-      const showWindow = sysConfig?.show_three_net_details === undefined
+      // 后端开关控制：关闭时忽略 ping/loss 窗口并隐藏首页卡片/列表的延迟丢包信息
+      const showThreeNetDetails = sysConfig?.show_three_net_details === undefined
         ? true
         : isEnabledValue(sysConfig.show_three_net_details)
-      this.nodesStore.configurePingHistory({ showWindow })
+      this.nodesStore.configurePingHistory({ showThreeNetDetails })
       this.nodesStore.initNodes(clients, statuses)
 
       for (const { apiIndex, updates } of latestReportUpdates) {
