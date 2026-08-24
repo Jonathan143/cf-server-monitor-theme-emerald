@@ -11,7 +11,7 @@ const showBackground = computed(() => appStore.backgroundEnabled)
 const currentUrl = computed(() => showBackground.value ? appStore.currentBackgroundUrl : '')
 const backgroundType = computed(() => appStore.backgroundType)
 const hasCustomBackground = computed(() => showBackground.value && !!currentUrl.value)
-const showBackgroundOverlay = computed(() => hasCustomBackground.value && appStore.backgroundOverlay > 0)
+const showBackgroundOverlay = computed(() => (hasCustomBackground.value || appStore.injectedBodyBackground) && appStore.backgroundOverlay > 0)
 
 const backgroundStyle = computed(() => {
   const blur = appStore.backgroundBlur
@@ -137,11 +137,11 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div v-if="!appStore.injectedBodyBackground" class="background-container" :style="backgroundContainerStyle">
+  <div class="background-container" :style="backgroundContainerStyle">
     <Transition name="fade">
       <div
         v-if="showDefaultBackground"
-        class="absolute inset-0 mx-0 max-w-none overflow-hidden bg-slate-50 dark:bg-slate-900/50"
+        class="absolute inset-0 mx-0 max-w-none overflow-hidden dark:bg-slate-900/50" :class="[!appStore.injectedBodyBackground && 'bg-slate-50']"
       >
         <div class="absolute top-0 left-1/2 -ml-152 h-100 w-325 dark:mask-[linear-gradient(white,transparent)]">
           <div
@@ -199,8 +199,8 @@ onUnmounted(() => {
         />
       </div>
     </Transition>
-    <div v-if="showBackgroundOverlay" class="background-overlay" :style="overlayStyle" />
   </div>
+  <div v-if="showBackgroundOverlay" class="background-overlay" :style="overlayStyle" />
 </template>
 
 <style scoped>
@@ -239,8 +239,9 @@ onUnmounted(() => {
 }
 
 .background-overlay {
-  position: absolute;
+  position: fixed;
   inset: 0;
+  z-index: -1;
   pointer-events: none;
 }
 
