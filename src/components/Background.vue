@@ -111,6 +111,11 @@ function handleVideoError() {
 }
 
 watch([showBackground, currentUrl, backgroundType], ([enabled, url, type]) => {
+  if (appStore.injectedBodyBackground) {
+    resetBackgroundState()
+    return
+  }
+
   if (!enabled || !url) {
     resetBackgroundState()
     return
@@ -132,7 +137,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="background-container" :style="backgroundContainerStyle">
+  <div v-if="!appStore.injectedBodyBackground" class="background-container" :style="backgroundContainerStyle">
     <Transition name="fade">
       <div
         v-if="showDefaultBackground"

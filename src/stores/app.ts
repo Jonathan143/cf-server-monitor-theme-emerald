@@ -131,9 +131,23 @@ const useAppStore = defineStore('app', () => {
     return publicSettings.value?.themeSettings.policeUrl ?? ''
   })
 
+  /**
+   * 新版后端把站点背景直接注入为 body 的 background-image（iOS 特判下为 body::after）。
+   * 页面加载时检测一次；注入存在时视为已启用背景。
+   */
+  const injectedBodyBackground = ref((() => {
+    if (typeof document === 'undefined')
+      return false
+    const body = getComputedStyle(document.body)
+    if (body.backgroundImage && body.backgroundImage !== 'none')
+      return true
+    const after = getComputedStyle(document.body, '::after')
+    return !!(after.backgroundImage && after.backgroundImage !== 'none')
+  })())
+
   // 计算属性：自定义背景配置
   const backgroundEnabled = computed<boolean>(() => {
-    return publicSettings.value?.themeSettings.backgroundEnabled ?? false
+    return (publicSettings.value?.themeSettings.backgroundEnabled ?? false) || injectedBodyBackground.value
   })
 
   const backgroundType = computed<'image' | 'video'>(() => {
@@ -256,6 +270,7 @@ const useAppStore = defineStore('app', () => {
     policeNumber,
     policeUrl,
     backgroundEnabled,
+    injectedBodyBackground,
     backgroundType,
     lightBackgroundUrl,
     darkBackgroundUrl,
