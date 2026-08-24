@@ -184,6 +184,11 @@ class InitManager {
 
       this.appStore.publicSettings = await getSharedApi().getPublicSettings()
       this.appStore.updateLoginState(configs.some(item => item.authorization))
+      const latencyWindow = configs[0]?.latency_window
+      this.nodesStore.configurePingHistory({
+        points: latencyWindow?.points,
+        hours: latencyWindow?.hours,
+      })
       await this.loadNodes()
       this.connectAllSockets()
       this.liveUpdateTimer = setInterval(() => {
@@ -202,7 +207,12 @@ class InitManager {
 
   private async loadNodes(): Promise<void> {
     try {
-      const { clients, statuses, latestReportUpdates } = await fetchAllServers()
+      const { clients, statuses, latestReportUpdates, sysConfig } = await fetchAllServers()
+      // 后端开关控制：关闭时忽略 ping/loss 窗口，回退单条 ping 数据累积（否则首页拿不到详细数据）
+      const showWindow = sysConfig?.show_three_net_details === undefined
+        ? true
+        : isEnabledValue(sysConfig.show_three_net_details)
+      this.nodesStore.configurePingHistory({ showWindow })
       this.nodesStore.initNodes(clients, statuses)
 
       for (const { apiIndex, updates } of latestReportUpdates) {

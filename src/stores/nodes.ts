@@ -106,10 +106,23 @@ interface StatusData {
 }
 
 const EARTH_SNAPSHOT_INTERVAL_MS = 60_000
-/** 延迟窗口桶长（与后端 /api/servers 窗口一致，每 2 分钟一个槽位） */
-const PING_WINDOW_BUCKET_MS = 2 * 60 * 1000
-/** 一小时数据集最多保留的 2 分钟桶数（覆盖近 1 小时） */
-const PING_HISTORY_LIMIT = 30
+
+/** 首页 ping/loss 历史摄取配置（由后端 /api/config 与 /api/servers 下发，缺省时回退旧行为） */
+interface PingHistoryConfig {
+  /** 后端 show_three_net_details：是否消费 /api/servers 返回的一小时 ping/loss 窗口 */
+  showWindow: boolean
+  /** latency_window.points：保留的桶数 */
+  points: number
+  /** latency_window.hours：窗口时长（小时），桶长 = hours / points */
+  hours: number
+}
+
+const PING_HISTORY_DEFAULTS: PingHistoryConfig = {
+  // 旧后端无 latency_window / show_three_net_details：30 桶 × 2 分钟 = 1 小时
+  showWindow: true,
+  points: 30,
+  hours: 1,
+}
 
 const useNodesStore = defineStore('nodes', () => {
   // ===== 状态 =====
@@ -118,6 +131,7 @@ const useNodesStore = defineStore('nodes', () => {
   const pingHistoryByUuid = ref<Record<string, PingHistoryPoint[]>>({})
   const wsConnectionState = ref<WsConnectionState>('disconnected')
   const wsReconnectAttempts = ref<number>(0)
+  const pingHistoryConfig = ref<PingHistoryConfig>({ ...PING_HISTORY_DEFAULTS })
   let lastEarthSnapshotAt = 0
 
   // ===== 计算属性 =====
@@ -275,9 +289,33 @@ const useNodesStore = defineStore('nodes', () => {
     }
   }
 
+  /** 当前配置下的窗口桶长（毫秒）；points/hours 无效时回退默认值 */
+  function pingHistoryBucketMs(): number {
+    const { points, hours } = pingHistoryConfig.value
+    return Math.max(1, Math.round(hours * 3_600_000 / points))
+  }
+
   /**
-   * 记录一次 ping 采样。按 2 分钟桶对齐 status.time 后按桶 upsert：
-   * 已存在同桶点时合并（新样本有效值覆盖，无效保留旧值），否则按时间顺序插入新桶并截断到 PING_HISTORY_LIMIT。
+   * 按后端配置调整 ping 历史摄取策略：showWindow 决定是否消费窗口，points/hours 决定桶长与保留条数。
+   * 缺省字段保持默认值（兼容旧后端）。
+   */
+  function configurePingHistory(config: Partial<PingHistoryConfig>): void {
+    const points = Number.isFinite(config.points) && (config.points ?? 0) > 0
+      ? Math.round(config.points!)
+      : PING_HISTORY_DEFAULTS.points
+    const hours = Number.isFinite(config.hours) && (config.hours ?? 0) > 0
+      ? config.hours!
+      : PING_HISTORY_DEFAULTS.hours
+    pingHistoryConfig.value = {
+      showWindow: config.showWindow ?? PING_HISTORY_DEFAULTS.showWindow,
+      points,
+      hours,
+    }
+  }
+
+  /**
+   * 记录一次 ping 采样。按配置的窗口桶长对齐 status.time 后按桶 upsert：
+   * 已存在同桶点时合并（新样本有效值覆盖，无效保留旧值），否则按时间顺序插入新桶并截断到配置的桶数。
    */
   function recordPingSample(uuid: string, status: NodeStatus): void {
     const sampleTime = Date.parse(status.time)
@@ -295,7 +333,7 @@ const useNodesStore = defineStore('nodes', () => {
     if (!latencyValues.length && !lossValues.length)
       return
 
-    const bucketTs = Math.floor(sampleTime / PING_WINDOW_BUCKET_MS) * PING_WINDOW_BUCKET_MS
+    const bucketTs = Math.floor(sampleTime / pingHistoryBucketMs()) * pingHistoryBucketMs()
     const latency = latencyValues.length
       ? latencyValues.reduce((sum, value) => sum + value, 0) / latencyValues.length
       : null
@@ -324,7 +362,7 @@ const useNodesStore = defineStore('nodes', () => {
       ...pingHistoryByUuid.value,
       [uuid]: [...history, { time: bucketTime, latency, loss }]
         .sort((a, b) => Date.parse(a.time) - Date.parse(b.time))
-        .slice(-PING_HISTORY_LIMIT),
+        .slice(-pingHistoryConfig.value.points),
     }
   }
 
@@ -373,11 +411,12 @@ const useNodesStore = defineStore('nodes', () => {
       }
 
       if (status) {
-        // 后端返回一小时窗口时直接作为历史（已含最新桶），否则由实时样本逐步累积
-        if (status.pingWindow?.length) {
+        // 开关开启且后端返回窗口时直接作为历史（已含最新桶），
+        // 否则（开关关闭 / 窗口缺失）由实时样本按单条 ping 值逐步累积
+        if (pingHistoryConfig.value.showWindow && status.pingWindow?.length) {
           pingHistoryByUuid.value = {
             ...pingHistoryByUuid.value,
-            [uuid]: status.pingWindow,
+            [uuid]: status.pingWindow.slice(-pingHistoryConfig.value.points),
           }
         }
         else {
@@ -528,6 +567,7 @@ const useNodesStore = defineStore('nodes', () => {
     initNodes,
     updateNodeStatuses,
     recordPingSample,
+    configurePingHistory,
     updateNodeClients,
     sortNodesByWeight,
     updateWsState,
