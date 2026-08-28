@@ -59,7 +59,7 @@ const maxPingRecordPreserveTime = computed(() => appStore.publicSettings?.ping_r
 const availableViews = computed(() => getAvailableChartTimeRanges(maxPingRecordPreserveTime.value))
 
 // 当前选中的视图
-const selectedView = ref<string>('10M')
+const selectedView = ref<string>(DEFAULT_CHART_TIME_RANGE.label)
 const selectedHours = computed(() => {
   const view = availableViews.value.find(v => v.label === selectedView.value)
   return view?.hours ?? DEFAULT_CHART_TIME_RANGE.hours

@@ -1047,7 +1047,7 @@ function rowToStatusRecord(uuid: string, row: HistoryRow): StatusRecord {
   }
 }
 
-export async function fetchHistory(uuid: string, hours = 0.167): Promise<StatusRecord[]> {
+export async function fetchHistory(uuid: string, hours = 1): Promise<StatusRecord[]> {
   const source = getServerSource(uuid)
   const rows = await request<HistoryRow[]>(`/api/history/all?id=${encodeURIComponent(source.serverId)}&hours=${hours}`, source.apiIndex)
   return (rows ?? []).map(row => rowToStatusRecord(uuid, row))

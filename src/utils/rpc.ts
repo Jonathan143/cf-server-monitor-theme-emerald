@@ -147,7 +147,7 @@ export class RpcClient {
 
     if (method === 'common:getRecords') {
       const options = (params ?? {}) as unknown as RecordsParams
-      const hours = options.hours ?? (options.type === 'ping' ? 1 : 0.167)
+      const hours = options.hours ?? 1
       const uuids = options.uuid
         ? [options.uuid]
         : getRegisteredDisplayUuids()
@@ -193,7 +193,7 @@ export class CfHistoryFacade {
   }
 
   async getNodeRecentStatus(uuid: string): Promise<{ count: number, records: StatusRecord[] }> {
-    const records = await fetchHistory(uuid, 0.167)
+    const records = await fetchHistory(uuid, 1)
     return { count: records.length, records }
   }
 

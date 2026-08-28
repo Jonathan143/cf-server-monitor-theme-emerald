@@ -71,7 +71,7 @@ function createNullTemplate(obj: unknown): unknown {
 /**
  * 填充缺失的时间点
  * 两种模式：
- * 1. 固定长度（默认）：生成指定长度的时间窗口数据，以最后一个数据点为终点
+ * 1. 固定长度：生成指定长度的时间窗口数据，以最后一个数据点为终点
  * 2. 可变长度：如果 totalSeconds 为 null，则从第一个数据点填充到最后一个
  *
  * @param data 输入数据数组，应有 time 或 updated_at 属性
@@ -81,8 +81,8 @@ function createNullTemplate(obj: unknown): unknown {
  */
 export function fillMissingTimePoints<T extends { time?: string, updated_at?: string }>(
   data: T[],
-  intervalSec: number = 10,
-  totalSeconds: number | null = 180,
+  intervalSec: number,
+  totalSeconds: number | null,
   matchToleranceSec?: number,
 ): T[] {
   if (!data.length)

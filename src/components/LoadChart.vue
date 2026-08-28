@@ -97,7 +97,7 @@ const chartMarginWithLegend = { top: 30, right: 24, bottom: 52, left: 56 }
 const availableViews = computed(() => getAvailableChartTimeRanges(maxRecordPreserveTime.value))
 
 // 当前选中的视图
-const selectedView = ref<string>('10M')
+const selectedView = ref<string>(DEFAULT_CHART_TIME_RANGE.label)
 const selectedHours = computed(() => {
   const view = availableViews.value.find(v => v.label === selectedView.value)
   return view?.hours ?? DEFAULT_CHART_TIME_RANGE.hours
@@ -149,6 +149,16 @@ function statusToRecordFormat(records: StatusRecord[]): RecordFormat[] {
   }))
 }
 
+// 实时视图只保留所选时间窗内的数据，避免长时间驻留后横向漂移；以最后一条数据点为锚，避免时钟偏差
+function trimToSelectedWindow(records: StatusRecord[]): StatusRecord[] {
+  const windowMs = (selectedHours.value || DEFAULT_CHART_TIME_RANGE.hours) * 3600 * 1000
+  const lastMs = dayjs(records.at(-1)?.time ?? '').valueOf()
+  if (!Number.isFinite(lastMs))
+    return records
+  const cutoff = lastMs - windowMs
+  return records.filter(record => dayjs(record.time).valueOf() >= cutoff)
+}
+
 async function fetchRecentData() {
   if (!props.uuid)
     return
@@ -163,8 +173,7 @@ async function fetchRecentData() {
     const result = await rpc.getNodeRecentStatus(props.uuid)
     const records = result?.records || []
     records.sort((a, b) => dayjs(a.time).valueOf() - dayjs(b.time).valueOf())
-    const maxLength = 150
-    remoteData.value = records.slice(-maxLength)
+    remoteData.value = trimToSelectedWindow(records)
   }
   catch (err) {
     error.value = err instanceof Error ? err.message : '获取数据失败'
@@ -214,7 +223,7 @@ function appendRealtimeStatus(node: NonNullable<typeof nodeInfo.value>): void {
   if (!Number.isFinite(nextTime) || nextTime <= lastTime)
     return
 
-  remoteData.value = [...remoteData.value, next].slice(-150)
+  remoteData.value = trimToSelectedWindow([...remoteData.value, next])
 }
 
 async function fetchHistoryData() {
@@ -266,24 +275,13 @@ const chartData = computed(() => {
     return data
   }
 
-  const hours = selectedHours.value || 4
+  const hours = selectedHours.value
   const minute = 60
   const hour = minute * 60
-  let intervalSec: number
-  let maxGap: number
 
-  if (hours <= 4) {
-    intervalSec = minute
-    maxGap = minute * 2
-  }
-  else if (hours > 120) {
-    intervalSec = hour
-    maxGap = hour * 2
-  }
-  else {
-    intervalSec = minute * 15
-    maxGap = minute * 30
-  }
+  // 7D 长档位用 1 小时网格，其余历史档位用 15 分钟网格
+  const intervalSec = hours > 120 ? hour : minute * 15
+  const maxGap = hours > 120 ? hour * 2 : minute * 30
 
   return fillMissingTimePoints(data, intervalSec, hours * 3600, maxGap)
 })
