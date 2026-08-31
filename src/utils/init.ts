@@ -3,6 +3,7 @@ import { useAppStore } from '@/stores/app'
 import { useNodesStore } from '@/stores/nodes'
 import {
   adaptServer,
+  ApiError,
   buildAdminUrl,
   cfRequest,
   fetchAllServers,
@@ -140,6 +141,20 @@ async function requestTurnstileToken(siteKey: string): Promise<string> {
   })
 }
 
+async function fetchInitialSiteConfigs() {
+  try {
+    return await fetchSiteConfigs()
+  }
+  catch (error) {
+    // A cached Turnstile credential can expire between visits. The request
+    // layer removes it after a 403; retry once without it so /api/config can
+    // return the site key and let the normal verification flow continue.
+    if (!(error instanceof ApiError) || error.code !== 403 || hasMultipleApiBases())
+      throw error
+    return fetchSiteConfigs()
+  }
+}
+
 class InitManager {
   private appStore = useAppStore()
   private nodesStore = useNodesStore()
@@ -158,7 +173,7 @@ class InitManager {
 
   async init(): Promise<void> {
     try {
-      let configs = await fetchSiteConfigs()
+      let configs = await fetchInitialSiteConfigs()
       const turnstileConfigs = configs.filter(config => isEnabledValue(config.turnstile_enabled))
       if (hasMultipleApiBases() && turnstileConfigs.length)
         throw new Error('多后端聚合模式暂不支持启用 Turnstile 的源站')

@@ -601,6 +601,7 @@ async function request<T>(path: string, apiIndex = 0, options: RequestInit = {})
       const host = new URL(baseUrl, window.location.origin).hostname
       localStorage.removeItem(`turnstile_verified_${host}`)
       localStorage.removeItem('turnstile_verified')
+      localStorage.removeItem('turnstile_token')
     }
     throw new ApiError(message, response.status, apiIndex)
   }
