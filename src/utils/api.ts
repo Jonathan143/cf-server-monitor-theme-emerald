@@ -104,6 +104,11 @@ export interface SiteConfig {
     points?: number
     hours?: number
   }
+  /** 自定义 Ping 运营商名称（旧版后端不返回时回退默认名称） */
+  custom_ct_name?: string
+  custom_cu_name?: string
+  custom_cm_name?: string
+  custom_bd_name?: string
 }
 
 export interface SysConfig {
@@ -304,6 +309,30 @@ export class CorsError extends ApiError {
 
 const sourceRegistry = new Map<string, ServerSource>()
 let cachedSiteConfigs: SiteConfig[] = []
+
+type PingProviderKey = 'ct' | 'cu' | 'cm' | 'bd'
+
+const DEFAULT_PING_PROVIDER_NAMES: Record<PingProviderKey, string> = {
+  ct: '电信',
+  cu: '联通',
+  cm: '移动',
+  bd: 'BGP',
+}
+
+/** Ping 运营商显示名称，由 /api/config 的 custom_*_name 覆盖，未配置时为默认值 */
+let pingProviderNames: Record<PingProviderKey, string> = { ...DEFAULT_PING_PROVIDER_NAMES }
+
+/** /api/config 未返回 custom_*_name 或返回空值时保持默认名称，兼容旧版后端 */
+function applyCustomPingNames(config?: SiteConfig): void {
+  if (!config)
+    return
+  pingProviderNames = {
+    ct: config.custom_ct_name?.trim() || DEFAULT_PING_PROVIDER_NAMES.ct,
+    cu: config.custom_cu_name?.trim() || DEFAULT_PING_PROVIDER_NAMES.cu,
+    cm: config.custom_cm_name?.trim() || DEFAULT_PING_PROVIDER_NAMES.cm,
+    bd: config.custom_bd_name?.trim() || DEFAULT_PING_PROVIDER_NAMES.bd,
+  }
+}
 
 function enabled(value: unknown): boolean {
   return value === true || value === 1 || value === '1' || value === 'true'
@@ -620,6 +649,7 @@ async function request<T>(path: string, apiIndex = 0, options: RequestInit = {})
 export async function fetchSiteConfigs(): Promise<SiteConfig[]> {
   const results = await Promise.all(getApiBases().map((_, index) => request<SiteConfig>('/api/config', index)))
   cachedSiteConfigs = results
+  applyCustomPingNames(results[0])
   return results
 }
 
@@ -909,10 +939,10 @@ export function adaptServer(server: CfServer, apiIndex: number): AdaptedServer {
   const bootTime = timestamp(server.boot_time, 0)
   const online = server.is_online ?? (updatedAt > 0 && now - updatedAt < ONLINE_THRESHOLD_MS)
   const ping: Record<string, NodeStatusPing> = {
-    ct: pingEntry('电信', server.ping_ct, server.loss_ct),
-    cu: pingEntry('联通', server.ping_cu, server.loss_cu),
-    cm: pingEntry('移动', server.ping_cm, server.loss_cm),
-    bd: pingEntry('BGP', server.ping_bd, server.loss_bd),
+    ct: pingEntry(pingProviderNames.ct, server.ping_ct, server.loss_ct),
+    cu: pingEntry(pingProviderNames.cu, server.ping_cu, server.loss_cu),
+    cm: pingEntry(pingProviderNames.cm, server.ping_cm, server.loss_cm),
+    bd: pingEntry(pingProviderNames.bd, server.ping_bd, server.loss_bd),
   }
   const pingWindow = buildPingWindow(server)
 
@@ -1054,10 +1084,10 @@ export async function fetchHistory(uuid: string, hours = 1): Promise<StatusRecor
 }
 
 const PING_TASKS = [
-  { id: 1, key: 'ct', name: '电信' },
-  { id: 2, key: 'cu', name: '联通' },
-  { id: 3, key: 'cm', name: '移动' },
-  { id: 4, key: 'bd', name: 'BGP' },
+  { id: 1, key: 'ct' },
+  { id: 2, key: 'cu' },
+  { id: 3, key: 'cm' },
+  { id: 4, key: 'bd' },
 ] as const
 
 export async function fetchPingHistory(uuid: string, hours = 1): Promise<{
@@ -1094,7 +1124,7 @@ export async function fetchPingHistory(uuid: string, hours = 1): Promise<{
     records,
     tasks: PING_TASKS.map(task => ({
       id: task.id,
-      name: task.name,
+      name: pingProviderNames[task.key],
       interval: 60,
       loss: (losses.get(task.id) ?? []).reduce((sum, value) => sum + value, 0) / Math.max(1, losses.get(task.id)?.length ?? 0),
     })),
