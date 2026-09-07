@@ -84,6 +84,7 @@ interface PingRecord {
 
 interface TaskInfo {
   id: number
+  key?: string
   name: string
   interval?: number
   loss?: number
@@ -516,6 +517,10 @@ const PING_TASK_KEYS: Record<number, string> = {
   2: 'cu',
   3: 'cm',
   4: 'bd',
+  5: 'node_1',
+  6: 'node_2',
+  7: 'node_3',
+  8: 'node_4',
 }
 
 function appendRealtimePing(node: NonNullable<typeof nodeInfo.value>): void {
@@ -523,9 +528,9 @@ function appendRealtimePing(node: NonNullable<typeof nodeInfo.value>): void {
     return
 
   const time = node.time
-  const taskIds = tasks.value.length ? tasks.value.map(task => task.id) : Object.keys(PING_TASK_KEYS).map(Number)
+  const taskIds = tasks.value.map(task => task.id)
   const records = taskIds.flatMap((taskId) => {
-    const key = PING_TASK_KEYS[taskId]
+    const key = tasks.value.find(task => task.id === taskId)?.key ?? PING_TASK_KEYS[taskId]
     const ping = key ? node.ping?.[key] : undefined
     if (!ping)
       return []
