@@ -53,23 +53,32 @@ export interface TopPingNetwork {
   tooltip: string
 }
 
-/** 取前 3 个网络的实时延迟（CT/CU/CM），用于「三网」行 */
+/**
+ * 首页「三网 / BGP」实时延迟：仅展示 adaptServer 已确认存在的探测项
+ *（ping_x / loss_x 皆不存在时不会进入 ping map，此处直接按 key 过滤）。
+ */
 export function buildTopPingNetworks(ping?: Record<string, NodeStatusPing>): TopPingNetwork[] {
-  return PING_PROVIDERS.slice(0, 3).map((provider) => {
-    const entry = ping?.[provider.key]
-    const latency = entry?.latest ?? 0
-    const loss = entry?.loss ?? 100
+  if (!ping)
+    return []
+
+  return PING_PROVIDERS.flatMap((provider) => {
+    const entry = ping[provider.key]
+    if (!entry)
+      return []
+
+    const latency = entry.latest ?? 0
+    const loss = entry.loss ?? 100
     const available = latency > 0 && loss < 100
 
-    return {
+    return [{
       key: provider.key,
-      name: entry?.name ?? provider.label,
+      name: entry.name ?? provider.label,
       latency: available ? `${Math.round(latency)}ms` : '--',
       toneClass: getPingToneClass(latency, available),
       tooltip: available
-        ? `${entry?.name ?? provider.label}\n${Math.round(latency)} ms`
-        : `${entry?.name ?? provider.label}\n暂无响应`,
-    }
+        ? `${entry.name ?? provider.label}\n${Math.round(latency)} ms`
+        : `${entry.name ?? provider.label}\n暂无响应`,
+    }]
   })
 }
 

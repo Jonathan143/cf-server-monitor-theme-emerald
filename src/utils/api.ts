@@ -894,9 +894,19 @@ const PING_TASKS: PingTaskDefinition[] = [
   { id: 8, key: 'node_4', latencyField: 'ping_node_4', lossField: 'loss_node_4' },
 ]
 
+/**
+ * 探测字段是否“存在可用值”。兼容后端省略键、null、""、false、非数字占位；
+ * 数值 0 视为存在（丢包 0% 合法）。两端 ping/loss 皆不存在时不展示对应任务。
+ */
+function isPingFieldPresent(value: unknown): boolean {
+  if (value === undefined || value === null || value === '' || value === false)
+    return false
+  const number = Number.parseFloat(String(value))
+  return Number.isFinite(number)
+}
+
 function pingFieldPresent(server: CfServer, field: keyof CfServer): boolean {
-  const value = server[field]
-  return value !== undefined && value !== null && value !== ''
+  return isPingFieldPresent(server[field])
 }
 
 const PING_WINDOW_PROVIDER_KEYS = ['ct', 'cu', 'cm', 'bd'] as const
@@ -1150,12 +1160,15 @@ export async function fetchPingHistory(uuid: string, hours = 1): Promise<{
     for (const task of PING_TASKS) {
       const latencyValue = row[task.latencyField]
       const lossRaw = row[task.lossField]
-      if (latencyValue === undefined && lossRaw === undefined)
+      const hasLatency = isPingFieldPresent(latencyValue)
+      const hasLoss = isPingFieldPresent(lossRaw)
+      // 与 adaptServer 一致：ping_x / loss_x 皆不存在（含 null/""/false/非数字）则跳过
+      if (!hasLatency && !hasLoss)
         continue
 
       availableTasks.add(task.id)
-      const lossValue = finiteNumber(lossRaw)
-      const latency = finiteNumber(latencyValue)
+      const lossValue = hasLoss ? finiteNumber(lossRaw) : 0
+      const latency = hasLatency ? finiteNumber(latencyValue) : 0
       records.push({
         client: uuid,
         task_id: task.id,
@@ -1163,9 +1176,11 @@ export async function fetchPingHistory(uuid: string, hours = 1): Promise<{
         value: lossValue >= 100 || latency <= 0 ? -1 : latency,
         loss: lossValue,
       })
-      const taskLosses = losses.get(task.id) ?? []
-      taskLosses.push(lossValue)
-      losses.set(task.id, taskLosses)
+      if (hasLoss) {
+        const taskLosses = losses.get(task.id) ?? []
+        taskLosses.push(lossValue)
+        losses.set(task.id, taskLosses)
+      }
     }
   }
 
