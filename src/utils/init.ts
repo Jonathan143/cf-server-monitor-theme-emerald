@@ -316,10 +316,18 @@ class InitManager {
         'ping_cu',
         'ping_cm',
         'ping_bd',
+        'ping_node_1',
+        'ping_node_2',
+        'ping_node_3',
+        'ping_node_4',
         'loss_ct',
         'loss_cu',
         'loss_cm',
         'loss_bd',
+        'loss_node_1',
+        'loss_node_2',
+        'loss_node_3',
+        'loss_node_4',
       )) {
         status.ping = current.ping
       }

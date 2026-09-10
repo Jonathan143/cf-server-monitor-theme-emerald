@@ -104,6 +104,16 @@ export interface SiteConfig {
     points?: number
     hours?: number
   }
+  /** 自定义 Ping 运营商名称（旧版后端不返回时回退默认名称） */
+  custom_ct_name?: string
+  custom_cu_name?: string
+  custom_cm_name?: string
+  custom_bd_name?: string
+  /** 详情页自定义节点名称（旧版后端不返回时回退默认名称） */
+  node_1_name?: string
+  node_2_name?: string
+  node_3_name?: string
+  node_4_name?: string
 }
 
 export interface SysConfig {
@@ -160,6 +170,14 @@ export interface CfServer {
   loss_cu?: number | string | null
   loss_cm?: number | string | null
   loss_bd?: number | string | null
+  ping_node_1?: number | string | null
+  ping_node_2?: number | string | null
+  ping_node_3?: number | string | null
+  ping_node_4?: number | string | null
+  loss_node_1?: number | string | null
+  loss_node_2?: number | string | null
+  loss_node_3?: number | string | null
+  loss_node_4?: number | string | null
   /** 一小时延迟窗口（旧→新，桶数与区间由 /api/config 的 latency_window 决定），仅 /api/servers 列表返回 */
   ping?: LatencyWindowPoint[]
   loss?: LatencyWindowPoint[]
@@ -304,6 +322,41 @@ export class CorsError extends ApiError {
 
 const sourceRegistry = new Map<string, ServerSource>()
 let cachedSiteConfigs: SiteConfig[] = []
+
+type PingProviderKey = 'ct' | 'cu' | 'cm' | 'bd'
+type PingNodeKey = 'node_1' | 'node_2' | 'node_3' | 'node_4'
+type PingTaskKey = PingProviderKey | PingNodeKey
+
+const DEFAULT_PING_TASK_NAMES: Record<PingTaskKey, string> = {
+  ct: '电信',
+  cu: '联通',
+  cm: '移动',
+  bd: 'BGP',
+  node_1: '节点 1',
+  node_2: '节点 2',
+  node_3: '节点 3',
+  node_4: '节点 4',
+}
+
+/** Ping 显示名称，由 /api/config 的自定义名称覆盖，未配置时为默认值 */
+let pingTaskNames: Record<PingTaskKey, string> = { ...DEFAULT_PING_TASK_NAMES }
+
+/** /api/config 未返回自定义名称或返回空值时逐项回退默认名称，兼容旧版后端 */
+function applyCustomPingNames(config?: SiteConfig): void {
+  if (!config)
+    return
+  pingTaskNames = {
+    ...DEFAULT_PING_TASK_NAMES,
+    ct: config.custom_ct_name?.trim() || DEFAULT_PING_TASK_NAMES.ct,
+    cu: config.custom_cu_name?.trim() || DEFAULT_PING_TASK_NAMES.cu,
+    cm: config.custom_cm_name?.trim() || DEFAULT_PING_TASK_NAMES.cm,
+    bd: config.custom_bd_name?.trim() || DEFAULT_PING_TASK_NAMES.bd,
+    node_1: config.node_1_name?.trim() || DEFAULT_PING_TASK_NAMES.node_1,
+    node_2: config.node_2_name?.trim() || DEFAULT_PING_TASK_NAMES.node_2,
+    node_3: config.node_3_name?.trim() || DEFAULT_PING_TASK_NAMES.node_3,
+    node_4: config.node_4_name?.trim() || DEFAULT_PING_TASK_NAMES.node_4,
+  }
+}
 
 function enabled(value: unknown): boolean {
   return value === true || value === 1 || value === '1' || value === 'true'
@@ -621,6 +674,7 @@ async function request<T>(path: string, apiIndex = 0, options: RequestInit = {})
 export async function fetchSiteConfigs(): Promise<SiteConfig[]> {
   const results = await Promise.all(getApiBases().map((_, index) => request<SiteConfig>('/api/config', index)))
   cachedSiteConfigs = results
+  applyCustomPingNames(results[0])
   return results
 }
 
@@ -823,6 +877,39 @@ function pingEntry(name: string, latency: unknown, loss: unknown): NodeStatusPin
   return { name, latest, avg: latest, tail: latest, loss: lossValue, min: latest, max: latest }
 }
 
+interface PingTaskDefinition {
+  id: number
+  key: PingTaskKey
+  latencyField: keyof CfServer
+  lossField: keyof CfServer
+}
+
+const PING_TASKS: PingTaskDefinition[] = [
+  { id: 1, key: 'ct', latencyField: 'ping_ct', lossField: 'loss_ct' },
+  { id: 2, key: 'cu', latencyField: 'ping_cu', lossField: 'loss_cu' },
+  { id: 3, key: 'cm', latencyField: 'ping_cm', lossField: 'loss_cm' },
+  { id: 4, key: 'bd', latencyField: 'ping_bd', lossField: 'loss_bd' },
+  { id: 5, key: 'node_1', latencyField: 'ping_node_1', lossField: 'loss_node_1' },
+  { id: 6, key: 'node_2', latencyField: 'ping_node_2', lossField: 'loss_node_2' },
+  { id: 7, key: 'node_3', latencyField: 'ping_node_3', lossField: 'loss_node_3' },
+  { id: 8, key: 'node_4', latencyField: 'ping_node_4', lossField: 'loss_node_4' },
+]
+
+/**
+ * 探测字段是否“存在可用值”。兼容后端省略键、null、""、false、非数字占位；
+ * 数值 0 视为存在（丢包 0% 合法）。两端 ping/loss 皆不存在时不展示对应任务。
+ */
+function isPingFieldPresent(value: unknown): boolean {
+  if (value === undefined || value === null || value === '' || value === false)
+    return false
+  const number = Number.parseFloat(String(value))
+  return Number.isFinite(number)
+}
+
+function pingFieldPresent(server: CfServer, field: keyof CfServer): boolean {
+  return isPingFieldPresent(server[field])
+}
+
 const PING_WINDOW_PROVIDER_KEYS = ['ct', 'cu', 'cm', 'bd'] as const
 
 function pingWindowNumber(value: unknown): number | null {
@@ -909,12 +996,17 @@ export function adaptServer(server: CfServer, apiIndex: number): AdaptedServer {
   const now = Date.now()
   const bootTime = timestamp(server.boot_time, 0)
   const online = server.is_online ?? (updatedAt > 0 && now - updatedAt < ONLINE_THRESHOLD_MS)
-  const ping: Record<string, NodeStatusPing> = {
-    ct: pingEntry('电信', server.ping_ct, server.loss_ct),
-    cu: pingEntry('联通', server.ping_cu, server.loss_cu),
-    cm: pingEntry('移动', server.ping_cm, server.loss_cm),
-    bd: pingEntry('BGP', server.ping_bd, server.loss_bd),
+  const ping: Record<string, NodeStatusPing> = {}
+  for (const task of PING_TASKS) {
+    if (pingFieldPresent(server, task.latencyField) || pingFieldPresent(server, task.lossField)) {
+      ping[task.key] = pingEntry(
+        pingTaskNames[task.key],
+        server[task.latencyField],
+        server[task.lossField],
+      )
+    }
   }
+
   const pingWindow = buildPingWindow(server)
 
   return {
@@ -1054,30 +1146,30 @@ export async function fetchHistory(uuid: string, hours = 1): Promise<StatusRecor
   return (rows ?? []).map(row => rowToStatusRecord(uuid, row))
 }
 
-const PING_TASKS = [
-  { id: 1, key: 'ct', name: '电信' },
-  { id: 2, key: 'cu', name: '联通' },
-  { id: 3, key: 'cm', name: '移动' },
-  { id: 4, key: 'bd', name: 'BGP' },
-] as const
-
 export async function fetchPingHistory(uuid: string, hours = 1): Promise<{
   records: PingRecord[]
-  tasks: Array<{ id: number, name: string, interval: number, loss: number }>
+  tasks: Array<{ id: number, key: PingTaskKey, name: string, interval: number, loss: number }>
 }> {
   const source = getServerSource(uuid)
   const rows = await request<HistoryRow[]>(`/api/history/all?id=${encodeURIComponent(source.serverId)}&hours=${hours}`, source.apiIndex)
   const records: PingRecord[] = []
   const losses = new Map<number, number[]>()
+  const availableTasks = new Set<number>()
 
   for (const row of rows ?? []) {
     const time = new Date(timestamp(row.timestamp)).toISOString()
     for (const task of PING_TASKS) {
-      const latencyValue = row[`ping_${task.key}`]
-      const lossValue = finiteNumber(row[`loss_${task.key}`])
-      if (latencyValue === undefined && row[`loss_${task.key}`] === undefined)
+      const latencyValue = row[task.latencyField]
+      const lossRaw = row[task.lossField]
+      const hasLatency = isPingFieldPresent(latencyValue)
+      const hasLoss = isPingFieldPresent(lossRaw)
+      // 与 adaptServer 一致：ping_x / loss_x 皆不存在（含 null/""/false/非数字）则跳过
+      if (!hasLatency && !hasLoss)
         continue
-      const latency = finiteNumber(latencyValue)
+
+      availableTasks.add(task.id)
+      const lossValue = hasLoss ? finiteNumber(lossRaw) : 0
+      const latency = hasLatency ? finiteNumber(latencyValue) : 0
       records.push({
         client: uuid,
         task_id: task.id,
@@ -1085,17 +1177,20 @@ export async function fetchPingHistory(uuid: string, hours = 1): Promise<{
         value: lossValue >= 100 || latency <= 0 ? -1 : latency,
         loss: lossValue,
       })
-      const taskLosses = losses.get(task.id) ?? []
-      taskLosses.push(lossValue)
-      losses.set(task.id, taskLosses)
+      if (hasLoss) {
+        const taskLosses = losses.get(task.id) ?? []
+        taskLosses.push(lossValue)
+        losses.set(task.id, taskLosses)
+      }
     }
   }
 
   return {
     records,
-    tasks: PING_TASKS.map(task => ({
+    tasks: PING_TASKS.filter(task => availableTasks.has(task.id)).map(task => ({
       id: task.id,
-      name: task.name,
+      key: task.key,
+      name: pingTaskNames[task.key],
       interval: 60,
       loss: (losses.get(task.id) ?? []).reduce((sum, value) => sum + value, 0) / Math.max(1, losses.get(task.id)?.length ?? 0),
     })),
